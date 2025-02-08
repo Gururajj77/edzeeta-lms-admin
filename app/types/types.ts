@@ -1,9 +1,8 @@
 // types/course.ts
-export interface Section {
+interface Section {
   id: string;
   title: string;
-  videoUrl: string;
-  duration?: string;
+  videoId: string; // Store only the video ID/path from Bunny.net
   order: number;
 }
 
