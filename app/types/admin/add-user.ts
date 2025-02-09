@@ -2,7 +2,7 @@
 export interface NewUser {
   email: string;
   password: string;
-  selectedCourses: string[]; // array of course IDs
+  courseIds: string[];
 }
 
 export interface CourseOption {

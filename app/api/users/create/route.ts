@@ -2,7 +2,8 @@
 import { NextResponse } from "next/server";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { app } from "../../../firebase/firebase-admin-config";
+import { app } from "@/app/firebase/firebase-admin-config";
+import { sendWelcomeEmail } from "@/app/lib/email";
 
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -17,6 +18,16 @@ export async function POST(request: Request) {
       password,
     });
 
+    // Get course details for email
+    const coursesSnapshot = await db
+      .collection("courses")
+      .where("__name__", "in", courseIds)
+      .get();
+
+    const courses = coursesSnapshot.docs.map((doc) => ({
+      mainTitle: doc.data().mainTitle,
+    }));
+
     // Create Firestore user document
     await db.collection("users").doc(userRecord.uid).set({
       email,
@@ -25,8 +36,8 @@ export async function POST(request: Request) {
       updatedAt: new Date().toISOString(),
     });
 
-    // Optional: Send welcome email
-    // You can implement your email sending logic here
+    // Send welcome email
+    await sendWelcomeEmail(email, password, courses);
 
     return NextResponse.json({
       message: "User created successfully",
@@ -35,10 +46,8 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     console.error("Error creating user:", error);
 
-    // Handle specific Firebase auth errors
-    const errorCode = (error as { code: string }).code;
     let errorMessage = "Failed to create user";
-
+    const errorCode = (error as { code: string }).code;
     switch (errorCode) {
       case "auth/email-already-exists":
         errorMessage = "Email is already in use";
@@ -49,9 +58,10 @@ export async function POST(request: Request) {
       case "auth/invalid-password":
         errorMessage = "Password must be at least 6 characters";
         break;
-      // Add more error cases as needed
     }
 
     return NextResponse.json({ error: errorMessage }, { status: 400 });
   }
 }
+
+// const errorCode = (error as { code: string }).code;

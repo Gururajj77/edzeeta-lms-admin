@@ -1,4 +1,3 @@
-// app/dashboard/add-user/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -13,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface CourseOption {
   id: string;
@@ -60,11 +60,20 @@ export default function AddUserPage() {
     }));
   };
 
-  const handleCourseSelect = (selectedIds: string[]) => {
-    setFormData((prev) => ({
-      ...prev,
-      courseIds: selectedIds,
-    }));
+  const handleCourseSelect = (courseId: string) => {
+    setFormData((prev) => {
+      if (prev.courseIds.includes(courseId)) {
+        return {
+          ...prev,
+          courseIds: prev.courseIds.filter((id) => id !== courseId),
+        };
+      } else {
+        return {
+          ...prev,
+          courseIds: [...prev.courseIds, courseId],
+        };
+      }
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,21 +140,48 @@ export default function AddUserPage() {
           </div>
 
           <div className="space-y-2">
-            <Select
-              value={formData.courseIds.join(",")}
-              onValueChange={(value) => handleCourseSelect(value.split(","))}
-            >
+            <Select onValueChange={handleCourseSelect}>
               <SelectTrigger>
                 <SelectValue placeholder="Select courses" />
               </SelectTrigger>
               <SelectContent>
                 {availableCourses.map((course) => (
-                  <SelectItem key={course.id} value={course.id}>
+                  <SelectItem
+                    key={course.id}
+                    value={course.id}
+                    className={
+                      formData.courseIds.includes(course.id) ? "bg-accent" : ""
+                    }
+                  >
                     {course.mainTitle}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+
+            <div className="flex flex-wrap gap-2 mt-2">
+              {formData.courseIds.map((id) => {
+                const course = availableCourses.find((c) => c.id === id);
+                return (
+                  course && (
+                    <Badge
+                      key={id}
+                      variant="secondary"
+                      className="flex items-center gap-1"
+                    >
+                      {course.mainTitle}
+                      <button
+                        type="button"
+                        onClick={() => handleCourseSelect(id)}
+                        className="text-xs hover:text-destructive"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  )
+                );
+              })}
+            </div>
           </div>
 
           <Button
