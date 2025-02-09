@@ -17,7 +17,7 @@ const navigation = [
   },
   {
     name: "Add Course",
-    href: "/dashboard/create-user",
+    href: "/dashboard/create-course",
     icon: BookPlus,
     description: "Add and organize courses",
   },
