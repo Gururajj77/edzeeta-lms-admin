@@ -76,6 +76,14 @@ export default function AddUserPage() {
     });
   };
 
+  const clearAllFields = () => {
+    setFormData({
+      email: "",
+      password: "",
+      courseIds: [],
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -140,24 +148,47 @@ export default function AddUserPage() {
           </div>
 
           <div className="space-y-2">
-            <Select onValueChange={handleCourseSelect}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select courses" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableCourses.map((course) => (
-                  <SelectItem
-                    key={course.id}
-                    value={course.id}
-                    className={
-                      formData.courseIds.includes(course.id) ? "bg-accent" : ""
-                    }
-                  >
-                    {course.mainTitle}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Select
+                  value={
+                    formData.courseIds[formData.courseIds.length - 1] || ""
+                  } // Add this value prop
+                  onValueChange={handleCourseSelect}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select courses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableCourses.map((course) => (
+                      <SelectItem
+                        key={course.id}
+                        value={course.id}
+                        className={
+                          formData.courseIds.includes(course.id)
+                            ? "bg-accent"
+                            : ""
+                        }
+                      >
+                        {course.mainTitle}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(formData.email ||
+                formData.password ||
+                formData.courseIds.length > 0) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={clearAllFields}
+                  className="text-gray-500 hover:text-destructive"
+                >
+                  Clear All
+                </Button>
+              )}
+            </div>
 
             <div className="flex flex-wrap gap-2 mt-2">
               {formData.courseIds.map((id) => {
