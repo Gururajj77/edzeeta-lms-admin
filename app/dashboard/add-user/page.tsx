@@ -36,6 +36,7 @@ export default function AddUserPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState("");
 
   useEffect(() => {
     fetchCourses();
@@ -82,6 +83,7 @@ export default function AddUserPage() {
       password: "",
       courseIds: [],
     });
+    setGeneratedPassword(""); // Clear the generated password as well
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,6 +120,25 @@ export default function AddUserPage() {
     }
   };
 
+  const generatePassword = () => {
+    const length = 12;
+    const charset =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
+    let password = "";
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * charset.length);
+      password += charset[randomIndex];
+    }
+    setGeneratedPassword(password);
+  };
+
+  const useGeneratedPassword = () => {
+    setFormData((prev) => ({
+      ...prev,
+      password: generatedPassword,
+    }));
+  };
+
   return (
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
@@ -145,6 +166,24 @@ export default function AddUserPage() {
               onChange={handleInputChange}
               required
             />
+            <div className="flex justify-between items-center">
+              <Button
+                type="button"
+                onClick={generatePassword}
+                className="text-sm bg-[#004aad] hover:bg-[#004aad]/90 text-white"
+              >
+                Generate Password
+              </Button>
+              {generatedPassword && (
+                <Button
+                  type="button"
+                  onClick={useGeneratedPassword}
+                  className="text-sm bg-[#004aad] hover:bg-[#004aad]/90 text-white"
+                >
+                  Use Generated Password
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -153,7 +192,7 @@ export default function AddUserPage() {
                 <Select
                   value={
                     formData.courseIds[formData.courseIds.length - 1] || ""
-                  } // Add this value prop
+                  }
                   onValueChange={handleCourseSelect}
                 >
                   <SelectTrigger>
@@ -181,9 +220,8 @@ export default function AddUserPage() {
                 formData.courseIds.length > 0) && (
                 <Button
                   type="button"
-                  variant="outline"
                   onClick={clearAllFields}
-                  className="text-gray-500 hover:text-destructive"
+                  className="text-gray-500 hover:text-destructive bg-[#004aad] hover:bg-[#004aad]/90 text-white"
                 >
                   Clear All
                 </Button>
@@ -217,7 +255,7 @@ export default function AddUserPage() {
 
           <Button
             type="submit"
-            className="w-full bg-[#004aad] hover:bg-[#004aad]/90"
+            className="w-full bg-[#004aad] hover:bg-[#004aad]/90 text-white"
             disabled={loading}
           >
             {loading ? "Creating User..." : "Create User"}

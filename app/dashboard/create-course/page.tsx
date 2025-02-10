@@ -15,49 +15,44 @@ import {
 } from "../../types/admin/course-creation";
 import { useToast } from "@/hooks/use-toast";
 
+const initialModule = (order: number): CourseModule => ({
+  id: uuidv4(),
+  moduleName: "",
+  description: "",
+  order,
+  sections: [
+    {
+      id: uuidv4(),
+      title: "",
+      videoId: "",
+      description: "",
+      order: 0,
+    },
+  ],
+});
+
+const initialCourseData: NewCourse = {
+  mainTitle: "",
+  description: "",
+  modules: [initialModule(0)],
+};
+
 export default function CreateCoursePage() {
   const { toast } = useToast();
-
-  const [courseData, setCourseData] = useState<NewCourse>({
-    mainTitle: "",
-    description: "",
-    modules: [
-      {
-        id: uuidv4(),
-        moduleName: "",
-        description: "",
-        order: 0,
-        sections: [
-          {
-            id: uuidv4(),
-            title: "",
-            videoId: "",
-            description: "",
-            order: 0,
-          },
-        ],
-      },
-    ],
-  });
-
+  const [courseData, setCourseData] = useState<NewCourse>(initialCourseData);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateForm = (): boolean => {
-    const newErrors: FormErrors = {
-      modules: {}, // Initialize the modules object
-    };
+    const newErrors: FormErrors = { modules: {} };
 
     if (!courseData.mainTitle.trim()) {
       newErrors.mainTitle = "Course title is required";
     }
 
     courseData.modules.forEach((module) => {
-      // Initialize the module object if it doesn't exist
       if (!newErrors.modules![module.id]) {
-        newErrors.modules![module.id] = {
-          sections: {}, // Initialize the sections object for this module
-        };
+        newErrors.modules![module.id] = { sections: {} };
       }
 
       if (!module.moduleName.trim()) {
@@ -65,32 +60,31 @@ export default function CreateCoursePage() {
       }
 
       module.sections.forEach((section) => {
-        // Initialize the sections object if it doesn't exist
         if (!newErrors.modules![module.id].sections) {
           newErrors.modules![module.id].sections = {};
         }
 
-        if (!section.title.trim() || !section.videoId.trim()) {
+        if (!section.title.trim()) {
           newErrors.modules![module.id].sections![section.id] = {
-            title: !section.title.trim()
-              ? "Section title is required"
-              : undefined,
-            videoId: !section.videoId.trim()
-              ? "Video ID is required"
-              : undefined,
+            title: "Section title is required",
+          };
+        }
+
+        if (!section.videoId.trim()) {
+          newErrors.modules![module.id].sections![section.id] = {
+            ...newErrors.modules![module.id].sections![section.id],
+            videoId: "Video ID is required",
           };
         }
       });
     });
 
-    // Clean up empty objects
-    courseData.modules.forEach((module) => {
+    Object.keys(newErrors.modules!).forEach((moduleId) => {
       if (
-        !newErrors.modules![module.id].moduleName &&
-        (!newErrors.modules![module.id].sections ||
-          Object.keys(newErrors.modules![module.id].sections!).length === 0)
+        !newErrors.modules![moduleId].moduleName &&
+        Object.keys(newErrors.modules![moduleId].sections!).length === 0
       ) {
-        delete newErrors.modules![module.id];
+        delete newErrors.modules![moduleId];
       }
     });
 
@@ -122,7 +116,6 @@ export default function CreateCoursePage() {
         throw new Error(result.details || "Failed to create course");
       }
 
-      // Show success message
       toast({
         title: "Success!",
         description: "Course created successfully",
@@ -158,24 +151,7 @@ export default function CreateCoursePage() {
   const handleAddModule = () => {
     setCourseData((prev) => ({
       ...prev,
-      modules: [
-        ...prev.modules,
-        {
-          id: uuidv4(),
-          moduleName: "",
-          description: "",
-          order: prev.modules.length,
-          sections: [
-            {
-              id: uuidv4(),
-              title: "",
-              videoId: "",
-              description: "",
-              order: 0,
-            },
-          ],
-        },
-      ],
+      modules: [...prev.modules, initialModule(prev.modules.length)],
     }));
   };
 
@@ -347,11 +323,11 @@ export default function CreateCoursePage() {
               }
             />
 
-            {courseData.modules.map((module, moduleIndex) => (
+            {courseData.modules.map((module) => (
               <CourseModuleComponent
                 key={module.id}
                 module={module}
-                moduleIndex={moduleIndex}
+                moduleIndex={courseData.modules.indexOf(module)}
                 totalModules={courseData.modules.length}
                 errors={errors}
                 onUpdateModule={handleUpdateModule}
