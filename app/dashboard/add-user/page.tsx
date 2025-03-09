@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,274 +14,197 @@ import {
 } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
-interface CourseOption {
-  id: string;
-  mainTitle: string;
-}
-
-interface NewUser {
-  email: string;
-  password: string;
-  courseIds: string[];
-}
+import { useAddUser } from "./useAddUser";
+import UserDashboard from "./UserDashboard";
 
 export default function AddUserPage() {
-  const [formData, setFormData] = useState<NewUser>({
-    email: "",
-    password: "",
-    courseIds: [],
-  });
+  const [activeTab, setActiveTab] = useState("add");
+  const [refreshDashboard, setRefreshDashboard] = useState(0);
 
-  const [availableCourses, setAvailableCourses] = useState<CourseOption[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [generatedPassword, setGeneratedPassword] = useState("");
+  const {
+    formData,
+    availableCourses,
+    loading,
+    error,
+    success,
+    generatedPassword,
+    handleInputChange,
+    handleCourseSelect,
+    clearAllFields,
+    handleSubmit,
+    generatePassword,
+    useGeneratedPassword,
+  } = useAddUser();
 
-  useEffect(() => {
-    fetchCourses();
-  }, []);
+  // Modified submit handler that also refreshes the dashboard
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    await handleSubmit(e);
 
-  const fetchCourses = async () => {
-    try {
-      const response = await fetch("/api/courses/list");
-      const data = await response.json();
-      setAvailableCourses(data.courses);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (err) {
-      setError("Failed to fetch courses");
+    // If no error occurred during submission, refresh dashboard and switch tabs
+    if (!error) {
+      setRefreshDashboard((prev) => prev + 1);
+      setActiveTab("manage");
     }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleCourseSelect = (courseId: string) => {
-    setFormData((prev) => {
-      if (prev.courseIds.includes(courseId)) {
-        return {
-          ...prev,
-          courseIds: prev.courseIds.filter((id) => id !== courseId),
-        };
-      } else {
-        return {
-          ...prev,
-          courseIds: [...prev.courseIds, courseId],
-        };
-      }
-    });
-  };
-
-  const clearAllFields = () => {
-    setFormData({
-      email: "",
-      password: "",
-      courseIds: [],
-    });
-    setGeneratedPassword(""); // Clear the generated password as well
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(false);
-
-    try {
-      const response = await fetch("/api/users/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to create user");
-      }
-
-      setSuccess(true);
-      setFormData({
-        email: "",
-        password: "",
-        courseIds: [],
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generatePassword = () => {
-    const length = 12;
-    const charset =
-      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
-    let password = "";
-    for (let i = 0; i < length; i++) {
-      const randomIndex = Math.floor(Math.random() * charset.length);
-      password += charset[randomIndex];
-    }
-    setGeneratedPassword(password);
-  };
-
-  const useGeneratedPassword = () => {
-    setFormData((prev) => ({
-      ...prev,
-      password: generatedPassword,
-    }));
   };
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle className="text-2xl font-bold">Add New User</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Input
-              name="email"
-              type="email"
-              placeholder="Email"
-              value={formData.email}
-              onChange={handleInputChange}
-              required
-            />
-          </div>
+    <div className="container py-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="add">Add User</TabsTrigger>
+          <TabsTrigger value="manage">Manage Users</TabsTrigger>
+        </TabsList>
 
-          <div className="space-y-2">
-            <Input
-              name="password"
-              type="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={handleInputChange}
-              required
-            />
-            <div className="flex justify-between items-center">
-              <Button
-                type="button"
-                onClick={generatePassword}
-                className="text-sm bg-[#004aad] hover:bg-[#004aad]/90 text-white"
-              >
-                Generate Password
-              </Button>
-              {generatedPassword && (
-                <Button
-                  type="button"
-                  onClick={useGeneratedPassword}
-                  className="text-sm bg-[#004aad] hover:bg-[#004aad]/90 text-white"
-                >
-                  Use Generated Password
-                </Button>
-              )}
-            </div>
-          </div>
+        <TabsContent value="add">
+          <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+              <CardTitle className="text-2xl font-bold">Add New User</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleFormSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Input
+                    name="email"
+                    type="email"
+                    placeholder="Email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
 
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Select
-                  value={
-                    formData.courseIds[formData.courseIds.length - 1] || ""
-                  }
-                  onValueChange={handleCourseSelect}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select courses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableCourses.map((course) => (
-                      <SelectItem
-                        key={course.id}
-                        value={course.id}
-                        className={
-                          formData.courseIds.includes(course.id)
-                            ? "bg-accent"
-                            : ""
-                        }
-                      >
-                        {course.mainTitle}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {(formData.email ||
-                formData.password ||
-                formData.courseIds.length > 0) && (
-                <Button
-                  type="button"
-                  onClick={clearAllFields}
-                  className="text-gray-500 hover:text-destructive bg-[#004aad] hover:bg-[#004aad]/90 text-white"
-                >
-                  Clear All
-                </Button>
-              )}
-            </div>
-
-            <div className="flex flex-wrap gap-2 mt-2">
-              {formData.courseIds.map((id) => {
-                const course = availableCourses.find((c) => c.id === id);
-                return (
-                  course && (
-                    <Badge
-                      key={id}
-                      variant="secondary"
-                      className="flex items-center gap-1"
+                <div className="space-y-2">
+                  <Input
+                    name="password"
+                    type="password"
+                    placeholder="Password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    required
+                  />
+                  <div className="flex justify-between items-center">
+                    <Button
+                      type="button"
+                      onClick={generatePassword}
+                      className="text-sm bg-[#004aad] hover:bg-[#004aad]/90 text-white"
                     >
-                      {course.mainTitle}
-                      <button
+                      Generate Password
+                    </Button>
+                    {generatedPassword && (
+                      <Button
                         type="button"
-                        onClick={() => handleCourseSelect(id)}
-                        className="text-xs hover:text-destructive"
+                        onClick={useGeneratedPassword}
+                        className="text-sm bg-[#004aad] hover:bg-[#004aad]/90 text-white"
                       >
-                        ×
-                      </button>
-                    </Badge>
-                  )
-                );
-              })}
-            </div>
-          </div>
+                        Use Generated Password
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
-          <Button
-            type="submit"
-            className="w-full bg-[#004aad] hover:bg-[#004aad]/90 text-white"
-            disabled={loading}
-          >
-            {loading ? "Creating User..." : "Create User"}
-          </Button>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Select
+                        value={
+                          formData.courseIds[formData.courseIds.length - 1] ||
+                          ""
+                        }
+                        onValueChange={handleCourseSelect}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select courses" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableCourses.map((course) => (
+                            <SelectItem
+                              key={course.id}
+                              value={course.id}
+                              className={
+                                formData.courseIds.includes(course.id)
+                                  ? "bg-accent"
+                                  : ""
+                              }
+                            >
+                              {course.mainTitle}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {(formData.email ||
+                      formData.password ||
+                      formData.courseIds.length > 0) && (
+                      <Button
+                        type="button"
+                        onClick={clearAllFields}
+                        className="text-gray-500 hover:text-destructive bg-[#004aad] hover:bg-[#004aad]/90 text-white"
+                      >
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
 
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.courseIds.map((id) => {
+                      const course = availableCourses.find((c) => c.id === id);
+                      return (
+                        course && (
+                          <Badge
+                            key={id}
+                            variant="secondary"
+                            className="flex items-center gap-1"
+                          >
+                            {course.mainTitle}
+                            <button
+                              type="button"
+                              onClick={() => handleCourseSelect(id)}
+                              className="text-xs hover:text-destructive"
+                            >
+                              ×
+                            </button>
+                          </Badge>
+                        )
+                      );
+                    })}
+                  </div>
+                </div>
 
-          {success && (
-            <Alert
-              variant="default"
-              className="bg-green-50 border-green-200 text-green-800"
-            >
-              <AlertTitle>Success</AlertTitle>
-              <AlertDescription>
-                User has been created successfully!
-              </AlertDescription>
-            </Alert>
-          )}
-        </form>
-      </CardContent>
-    </Card>
+                <Button
+                  type="submit"
+                  className="w-full bg-[#004aad] hover:bg-[#004aad]/90 text-white"
+                  disabled={loading}
+                >
+                  {loading ? "Creating User..." : "Create User"}
+                </Button>
+
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                {success && (
+                  <Alert
+                    variant="default"
+                    className="bg-green-50 border-green-200 text-green-800"
+                  >
+                    <AlertTitle>Success</AlertTitle>
+                    <AlertDescription>
+                      User has been created successfully!
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="manage">
+          <UserDashboard key={`dashboard-${refreshDashboard}`} />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
