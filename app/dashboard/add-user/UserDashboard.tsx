@@ -1,7 +1,6 @@
 "use client";
 
 import { useUserDashboard } from "./useUserDashboard";
-import { ResetPasswordModal } from "./ResetPaswordModal";
 import { EditCoursesModal } from "./EditCoursesModal";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,15 +24,11 @@ export default function UserDashboard() {
     error,
     selectedUser,
     isEditModalOpen,
-    isResetPasswordModalOpen,
     processingAction,
     successMessage,
     fetchUsers,
     openEditModal,
     closeEditModal,
-    openResetPasswordModal,
-    closeResetPasswordModal,
-    sendPasswordResetEmail,
     updateUserCourses,
     clearError,
   } = useUserDashboard();
@@ -139,14 +134,6 @@ export default function UserDashboard() {
                             >
                               Edit Courses
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openResetPasswordModal(user)}
-                              className="border-amber-500 text-amber-500 hover:bg-amber-50"
-                            >
-                              Reset Password
-                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -157,14 +144,6 @@ export default function UserDashboard() {
             )}
           </>
         )}
-
-        <ResetPasswordModal
-          user={selectedUser}
-          isOpen={isResetPasswordModalOpen}
-          onClose={closeResetPasswordModal}
-          onSendResetEmail={sendPasswordResetEmail}
-          isProcessing={processingAction}
-        />
 
         <EditCoursesModal
           user={selectedUser}
