@@ -1,13 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getFirestore } from "firebase-admin/firestore";
 import { app } from "@/app/firebase/firebase-admin-config";
 
 const db = getFirestore(app);
 
-export async function POST(
-  request: Request,
-  { params }: { params: { userId: string } }
-) {
+// Define the type for the params object
+type RouteParams = {
+  params: {
+    userId: string;
+  };
+};
+
+export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { courseIds } = await request.json();
     const userId = params.userId;
