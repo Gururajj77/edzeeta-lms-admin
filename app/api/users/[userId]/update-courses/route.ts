@@ -4,13 +4,17 @@ import { app } from "@/app/firebase/firebase-admin-config";
 
 const db = getFirestore(app);
 
-export async function POST(
-  request: NextRequest,
-  context: { params: { userId: string } }
-) {
+export async function POST(request: NextRequest) {
   try {
     const { courseIds } = await request.json();
-    const userId = context.params.userId;
+    const userId = request.nextUrl.searchParams.get("userId");
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
+    }
 
     if (!courseIds || !Array.isArray(courseIds)) {
       return NextResponse.json(
