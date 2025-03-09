@@ -4,17 +4,13 @@ import { app } from "@/app/firebase/firebase-admin-config";
 
 const db = getFirestore(app);
 
-// Define the type for the params object
-type RouteParams = {
-  params: {
-    userId: string;
-  };
-};
-
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export async function POST(
+  request: NextRequest,
+  context: { params: { userId: string } }
+) {
   try {
     const { courseIds } = await request.json();
-    const userId = params.userId;
+    const userId = context.params.userId;
 
     if (!courseIds || !Array.isArray(courseIds)) {
       return NextResponse.json(
