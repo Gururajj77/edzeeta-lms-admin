@@ -5,6 +5,7 @@ import {
   NewCourse,
   CourseModule,
   VideoSection,
+  Video,
 } from "../../../types/admin/course-creation";
 
 // Initialize Firebase Admin
@@ -52,10 +53,40 @@ export async function POST(request: Request) {
         const sectionsPromises = module.sections.map(
           async (section: VideoSection, sectionIndex: number) => {
             const sectionRef = moduleRef.collection("sections").doc();
+
+            // Process videos data - Handle both new videos array and legacy videoId
+            let videos: Video[] = [];
+
+            // If section has a videos array, use it
+            if (section.videos && section.videos.length > 0) {
+              videos = section.videos.map((video) => ({
+                id: video.id,
+                duration: video.duration || 0,
+              }));
+            }
+            // If no videos array but has videoId, create a single video entry
+            else if (section.videoId) {
+              videos = [
+                {
+                  id: section.videoId,
+                  duration: section.duration || 0,
+                },
+              ];
+            }
+
+            // Set total duration based on all videos
+            const totalDuration = videos.reduce(
+              (total, video) => total + (video.duration || 0),
+              0
+            );
+
             return sectionRef.set({
               id: sectionRef.id,
               title: section.title,
-              videoId: section.videoId,
+              videoId:
+                section.videoId || (videos.length > 0 ? videos[0].id : ""), // Keep for backward compatibility
+              videos: videos,
+              duration: totalDuration > 0 ? totalDuration : null, // Total duration of all videos
               description: section.description || "",
               order: section.order || sectionIndex,
               createdAt: new Date().toISOString(),

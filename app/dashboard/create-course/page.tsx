@@ -12,9 +12,11 @@ import {
   NewCourse,
   FormErrors,
   CourseModule,
+  Video,
 } from "../../types/admin/course-creation";
 import { useToast } from "@/hooks/use-toast";
 
+// Update initialModule to use the new videos array
 const initialModule = (order: number): CourseModule => ({
   id: uuidv4(),
   moduleName: "",
@@ -24,7 +26,8 @@ const initialModule = (order: number): CourseModule => ({
     {
       id: uuidv4(),
       title: "",
-      videoId: "",
+      videoId: "", // Keep for backward compatibility
+      videos: [], // Add empty videos array
       description: "",
       order: 0,
     },
@@ -70,10 +73,17 @@ export default function CreateCoursePage() {
           };
         }
 
-        if (!section.videoId.trim()) {
+        // Check if either legacy videoId or at least one video in videos array exists
+        const hasVideoId = section.videoId && section.videoId.trim() !== "";
+        const hasVideos =
+          section.videos &&
+          section.videos.length > 0 &&
+          section.videos.some((v) => v.id && v.id.trim() !== "");
+
+        if (!hasVideoId && !hasVideos) {
           newErrors.modules![module.id].sections![section.id] = {
             ...newErrors.modules![module.id].sections![section.id],
-            videoId: "Video ID is required",
+            videoId: "At least one video is required",
           };
         }
       });
@@ -100,6 +110,28 @@ export default function CreateCoursePage() {
     e.preventDefault();
     if (!validateForm()) return;
 
+    // Before submitting, convert any legacy videoId to videos array
+    const preparedData = {
+      ...courseData,
+      modules: courseData.modules.map((module) => ({
+        ...module,
+        sections: module.sections.map((section) => {
+          // If section has videoId but no videos, move to videos array
+          if (
+            section.videoId &&
+            (!section.videos || section.videos.length === 0)
+          ) {
+            return {
+              ...section,
+              videos: [{ id: section.videoId, duration: 0 }],
+              videoId: undefined, // Remove videoId after migration
+            };
+          }
+          return section;
+        }),
+      })),
+    };
+
     setIsSubmitting(true);
     try {
       const response = await fetch("/api/courses/create", {
@@ -107,7 +139,7 @@ export default function CreateCoursePage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(courseData),
+        body: JSON.stringify(preparedData),
       });
 
       const result = await response.json();
@@ -168,6 +200,7 @@ export default function CreateCoursePage() {
                   id: uuidv4(),
                   title: "",
                   videoId: "",
+                  videos: [], // Add empty videos array
                   description: "",
                   order: module.sections.length,
                 },
@@ -266,11 +299,12 @@ export default function CreateCoursePage() {
     }));
   };
 
+  // Updated to handle different value types
   const handleUpdateSection = (
     moduleId: string,
     sectionId: string,
     field: string,
-    value: string
+    value: string | Video[]
   ) => {
     setCourseData((prev) => ({
       ...prev,
