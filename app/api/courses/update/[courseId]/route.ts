@@ -1,18 +1,16 @@
 /* eslint-disable @next/next/no-assign-module-variable */
-// app/api/admin/courses/[courseId]/route.ts
-import { NextResponse } from "next/server";
+// app/api/courses/update/[courseId]/route.ts
+import { NextRequest, NextResponse } from "next/server";
 import { getFirestore } from "firebase-admin/firestore";
 import { app } from "@/app/firebase/firebase-admin-config";
 
 const db = getFirestore(app);
 
-// GET handled in your main courses route
-
 // PATCH to update a course
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { courseId: string } }
-) {
+): Promise<NextResponse> {
   try {
     const courseId = params.courseId;
     const data = await request.json();
@@ -27,11 +25,15 @@ export async function PATCH(
     }
 
     // Update course basic info
-    await db.collection("courses").doc(courseId).update({
-      mainTitle: data.mainTitle,
-      description: data.description,
-      updatedAt: new Date().toISOString(),
-    });
+    await db
+      .collection("courses")
+      .doc(courseId)
+      .update({
+        mainTitle: data.mainTitle,
+        description: data.description,
+        status: data.status || "draft", // Add status field
+        updatedAt: new Date().toISOString(),
+      });
 
     // Update modules and their sections
     for (const module of data.modules) {
