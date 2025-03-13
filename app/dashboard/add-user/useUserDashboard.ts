@@ -86,62 +86,14 @@ export function useUserDashboard() {
     setSelectedUser(null);
   };
 
-  const sendPasswordResetEmail = async (userId: string, email: string) => {
-    try {
-      setProcessingAction(true);
-      console.log(`Sending reset email to ${email} for user ${userId}`);
-
-      // Make sure userId is a string and properly formatted
-      if (!userId || typeof userId !== "string") {
-        throw new Error("Invalid user ID");
-      }
-
-      // Construct the URL carefully
-      const url = `/api/users/${encodeURIComponent(userId)}/send-reset-email`;
-      console.log(`Making request to: ${url}`);
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      console.log(`Response status: ${response.status}`);
-      const data = await response.json();
-      console.log("Response data:", data);
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to send password reset email");
-      }
-
-      setSuccessMessage("Password reset email sent successfully");
-      closeResetPasswordModal();
-
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage(null);
-      }, 3000);
-    } catch (err) {
-      console.error("Error in sendPasswordResetEmail:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to send password reset email"
-      );
-    } finally {
-      setProcessingAction(false);
-    }
-  };
-
+  // Change this function in useUserDashboard.js
   const updateUserCourses = async (courseIds: string[]) => {
     if (!selectedUser) return;
 
     try {
       setProcessingAction(true);
       const response = await fetch(
-        `/api/users/${selectedUser.id}/update-courses`,
+        `/api/users/${selectedUser.id}/update-courses?userId=${selectedUser.id}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -195,7 +147,6 @@ export function useUserDashboard() {
     closeEditModal,
     openResetPasswordModal,
     closeResetPasswordModal,
-    sendPasswordResetEmail,
     updateUserCourses,
     clearError,
   };
