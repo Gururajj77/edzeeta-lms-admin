@@ -21,6 +21,12 @@ const navigation = [
     icon: BookPlus,
     description: "Add and organize courses",
   },
+  {
+    name: "Update Course",
+    href: "/dashboard/update-course",
+    icon: BookPlus,
+    description: "update and organize courses",
+  },
 ];
 
 export function DashboardNav() {

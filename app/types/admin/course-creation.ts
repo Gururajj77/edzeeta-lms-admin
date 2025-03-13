@@ -1,4 +1,4 @@
-// Updated interfaces to support multiple videos with duration
+// types/admin/course-creation.ts
 
 export interface Video {
   id: string;
@@ -23,6 +23,20 @@ export interface CourseModule {
   sections: VideoSection[];
 }
 
+export interface Course {
+  id: string;
+  mainTitle: string;
+  description?: string;
+  modules: CourseModule[];
+  // Other course properties
+  status?: "draft" | "published" | "archived";
+  createdAt?: string;
+  updatedAt?: string;
+  authorId?: string;
+  price?: number;
+  thumbnail?: string;
+}
+
 export interface NewCourse {
   mainTitle: string;
   description?: string;
@@ -30,7 +44,6 @@ export interface NewCourse {
 }
 
 // Updated error interfaces for form validation
-
 export interface VideoError {
   id?: string;
   duration?: string;
