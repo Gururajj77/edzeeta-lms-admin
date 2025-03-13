@@ -10,7 +10,8 @@ export async function POST(
   context: { params: { courseId: string } }
 ) {
   try {
-    const courseId = context.params.courseId;
+    // Fix: Await the params object before accessing properties
+    const { courseId } = await context.params;
     const data = await request.json();
 
     // Verify that the course exists
