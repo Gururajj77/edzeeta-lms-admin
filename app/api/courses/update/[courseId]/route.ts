@@ -7,7 +7,7 @@ import { app } from "@/app/firebase/firebase-admin-config";
 const db = getFirestore(app);
 
 // PATCH to update a course
-export async function PATCH(
+export async function POST(
   request: NextRequest,
   { params }: { params: { courseId: string } }
 ): Promise<NextResponse> {

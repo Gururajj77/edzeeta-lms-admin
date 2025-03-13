@@ -91,7 +91,7 @@ const CoursesList: React.FC = () => {
     setSaving(true);
     try {
       const response = await fetch(`/api/courses/update/${editingCourse.id}`, {
-        method: "PATCH",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingCourse),
       });
