@@ -6,11 +6,11 @@ import { app } from "@/app/firebase/firebase-admin-config";
 
 const db = getFirestore(app);
 
-// PATCH to update a course
+// POST to update a course
 export async function POST(
   request: NextRequest,
   { params }: { params: { courseId: string } }
-): Promise<NextResponse> {
+) {
   try {
     const courseId = params.courseId;
     const data = await request.json();
@@ -31,7 +31,7 @@ export async function POST(
       .update({
         mainTitle: data.mainTitle,
         description: data.description,
-        status: data.status || "draft", // Add status field
+        status: data.status || "draft",
         updatedAt: new Date().toISOString(),
       });
 
@@ -60,8 +60,8 @@ export async function POST(
           title: section.title,
           description: section.description,
           order: section.order,
-          videos: section.videos, // Update the videos array
-          videoId: section.videoId, // Keep for backward compatibility
+          videos: section.videos,
+          videoId: section.videoId,
           updatedAt: new Date().toISOString(),
         });
       }
