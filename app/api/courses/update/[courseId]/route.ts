@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-assign-module-variable */
 // app/api/courses/update/[courseId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getFirestore } from "firebase-admin/firestore";
@@ -6,13 +5,12 @@ import { app } from "@/app/firebase/firebase-admin-config";
 
 const db = getFirestore(app);
 
-// POST to update a course
 export async function POST(
   request: NextRequest,
-  { params }: { params: { courseId: string } }
+  context: { params: { courseId: string } }
 ) {
   try {
-    const courseId = params.courseId;
+    const courseId = context.params.courseId;
     const data = await request.json();
 
     // Verify that the course exists
@@ -36,6 +34,7 @@ export async function POST(
       });
 
     // Update modules and their sections
+    // eslint-disable-next-line @next/next/no-assign-module-variable
     for (const module of data.modules) {
       const moduleRef = db
         .collection("courses")
