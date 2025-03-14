@@ -42,6 +42,7 @@ import {
   VideoSection,
   Video,
 } from "../../types/admin/course-creation";
+import { updateCourse } from "@/app/actions/courseActions";
 
 const CoursesList: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -90,15 +91,10 @@ const CoursesList: React.FC = () => {
 
     setSaving(true);
     try {
-      const response = await fetch(`/api/courses/update/${editingCourse.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingCourse),
-      });
+      // Use the server action directly
+      const result = await updateCourse(editingCourse.id, editingCourse);
 
-      const data = await response.json();
-
-      if (data.success) {
+      if (result.success) {
         // Update the courses list with the edited course
         setCourses(
           courses.map((course) =>
@@ -119,7 +115,7 @@ const CoursesList: React.FC = () => {
       } else {
         setNotification({
           type: "error",
-          message: data.message || "Failed to update course",
+          message: result.message || "Failed to update course",
         });
       }
     } catch (err) {

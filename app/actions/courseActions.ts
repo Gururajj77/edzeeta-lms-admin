@@ -1,26 +1,27 @@
-// app/api/courses/update/[courseId]/route.ts
-import { NextRequest, NextResponse } from "next/server";
+// app/actions/courseActions.ts
+"use server";
+
 import { getFirestore } from "firebase-admin/firestore";
 import { app } from "@/app/firebase/firebase-admin-config";
+import { Course } from "@/app/types/admin/course-creation";
+import { revalidatePath } from "next/cache";
 
 const db = getFirestore(app);
 
-export async function POST(
-  request: NextRequest,
-  context: { params: { courseId: string } }
-) {
-  try {
-    // Fix: Await the params object before accessing properties
-    const { courseId } = await context.params;
-    const data = await request.json();
+type UpdateCourseResult = {
+  success: boolean;
+  message: string;
+};
 
+export async function updateCourse(
+  courseId: string,
+  courseData: Course
+): Promise<UpdateCourseResult> {
+  try {
     // Verify that the course exists
     const courseDoc = await db.collection("courses").doc(courseId).get();
     if (!courseDoc.exists) {
-      return NextResponse.json(
-        { success: false, message: "Course not found" },
-        { status: 404 }
-      );
+      return { success: false, message: "Course not found" };
     }
 
     // Update course basic info
@@ -28,15 +29,15 @@ export async function POST(
       .collection("courses")
       .doc(courseId)
       .update({
-        mainTitle: data.mainTitle,
-        description: data.description,
-        status: data.status || "draft",
+        mainTitle: courseData.mainTitle,
+        description: courseData.description,
+        status: courseData.status || "draft",
         updatedAt: new Date().toISOString(),
       });
 
     // Update modules and their sections
     // eslint-disable-next-line @next/next/no-assign-module-variable
-    for (const module of data.modules) {
+    for (const module of courseData.modules) {
       const moduleRef = db
         .collection("courses")
         .doc(courseId)
@@ -67,15 +68,12 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Course updated successfully",
-    });
+    // Revalidate the dashboard page to reflect changes
+    revalidatePath("/dashboard/update-course");
+
+    return { success: true, message: "Course updated successfully" };
   } catch (error) {
     console.error("Error updating course:", error);
-    return NextResponse.json(
-      { success: false, message: "Failed to update course" },
-      { status: 500 }
-    );
+    return { success: false, message: "Failed to update course" };
   }
 }
