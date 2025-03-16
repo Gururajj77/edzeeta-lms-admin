@@ -48,7 +48,7 @@ export const CourseSection: React.FC<CourseSectionProps> = ({
 
   // Add a new video to the section
   const addVideo = () => {
-    const updatedVideos = [...videos, { id: "", duration: 0 }];
+    const updatedVideos = [...videos, { id: "", name: "", duration: 0 }];
     onUpdateSection(moduleId, section.id, "videos", updatedVideos);
   };
 
@@ -79,7 +79,7 @@ export const CourseSection: React.FC<CourseSectionProps> = ({
   const migrateToVideosArray = () => {
     if (section.videoId) {
       onUpdateSection(moduleId, section.id, "videos", [
-        { id: section.videoId, duration: 0 },
+        { id: section.videoId, name: "", duration: 0 },
       ]);
       onUpdateSection(moduleId, section.id, "videoId", undefined);
     }
@@ -189,39 +189,57 @@ export const CourseSection: React.FC<CourseSectionProps> = ({
           )}
 
           {videos.map((video, index) => (
-            <div key={index} className="flex gap-2 items-center">
-              <Input
-                placeholder="Video ID"
-                value={video.id}
-                onChange={(e) => updateVideo(index, "id", e.target.value)}
-                className={
-                  errors?.modules?.[moduleId]?.sections?.[section.id]?.videos?.[
-                    index
-                  ]?.id
-                    ? "border-red-500"
-                    : ""
-                }
-              />
-              <Input
-                placeholder="Duration (sec)"
-                type="number"
-                min="0"
-                value={video.duration || ""}
-                onChange={(e) =>
-                  updateVideo(index, "duration", parseInt(e.target.value) || 0)
-                }
-                className="max-w-[120px]"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => removeVideo(index)}
-                className="text-red-500 h-8 w-8"
-                disabled={videos.length === 1}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+            <div key={index} className="space-y-2 mb-3">
+              <div className="flex gap-2 items-center">
+                <Input
+                  placeholder="Video Name"
+                  value={video.name || ""}
+                  onChange={(e) => updateVideo(index, "name", e.target.value)}
+                  className={
+                    errors?.modules?.[moduleId]?.sections?.[section.id]
+                      ?.videos?.[index]?.name
+                      ? "border-red-500"
+                      : ""
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeVideo(index)}
+                  className="text-red-500 h-8 w-8"
+                  disabled={videos.length === 1}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex gap-2 items-center">
+                <Input
+                  placeholder="Video ID"
+                  value={video.id}
+                  onChange={(e) => updateVideo(index, "id", e.target.value)}
+                  className={
+                    errors?.modules?.[moduleId]?.sections?.[section.id]
+                      ?.videos?.[index]?.id
+                      ? "border-red-500"
+                      : ""
+                  }
+                />
+                <Input
+                  placeholder="Duration (sec)"
+                  type="number"
+                  min="0"
+                  value={video.duration || ""}
+                  onChange={(e) =>
+                    updateVideo(
+                      index,
+                      "duration",
+                      parseInt(e.target.value) || 0
+                    )
+                  }
+                  className="max-w-[120px]"
+                />
+              </div>
             </div>
           ))}
         </div>

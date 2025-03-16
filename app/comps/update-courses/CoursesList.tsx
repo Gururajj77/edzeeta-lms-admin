@@ -1,4 +1,3 @@
-// components/admin/CoursesList.tsx
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -256,7 +255,10 @@ const CoursesList: React.FC = () => {
               if (section.id === sectionId) {
                 return {
                   ...section,
-                  videos: [...section.videos, { id: "", duration: 0 }],
+                  videos: [
+                    ...section.videos,
+                    { id: "", name: "", duration: 0 },
+                  ],
                 };
               }
               return section;
@@ -511,8 +513,14 @@ const CoursesList: React.FC = () => {
                                               >
                                                 <span className="text-gray-700">
                                                   {index + 1}.{" "}
-                                                  {video.id ||
-                                                    "Video ID not set"}
+                                                  {video.name ? (
+                                                    <span className="font-medium">
+                                                      {video.name}
+                                                    </span>
+                                                  ) : (
+                                                    video.id ||
+                                                    "Video ID not set"
+                                                  )}
                                                 </span>
                                                 <span className="text-gray-500">
                                                   {formatDuration(
@@ -777,55 +785,74 @@ const CoursesList: React.FC = () => {
                                   {section.videos.map((video, videoIndex) => (
                                     <div
                                       key={videoIndex}
-                                      className="flex items-center space-x-2"
+                                      className="space-y-2 border-l-2 border-gray-100 pl-2 py-2 mb-3"
                                     >
-                                      <div className="flex-1">
-                                        <Input
-                                          placeholder="Video ID"
-                                          value={video.id}
-                                          onChange={(e) =>
-                                            updateVideo(
+                                      <div className="flex items-center space-x-2">
+                                        <div className="flex-1">
+                                          <Input
+                                            placeholder="Video Name"
+                                            value={video.name || ""}
+                                            onChange={(e) =>
+                                              updateVideo(
+                                                module.id,
+                                                section.id,
+                                                videoIndex,
+                                                "name",
+                                                e.target.value
+                                              )
+                                            }
+                                          />
+                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="text-red-500"
+                                          onClick={() =>
+                                            removeVideo(
                                               module.id,
                                               section.id,
-                                              videoIndex,
-                                              "id",
-                                              e.target.value
+                                              videoIndex
                                             )
                                           }
-                                        />
+                                          disabled={section.videos.length <= 1}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
                                       </div>
-                                      <div className="w-24">
-                                        <Input
-                                          type="number"
-                                          placeholder="Duration (sec)"
-                                          min="0"
-                                          value={video.duration}
-                                          onChange={(e) =>
-                                            updateVideo(
-                                              module.id,
-                                              section.id,
-                                              videoIndex,
-                                              "duration",
-                                              parseInt(e.target.value) || 0
-                                            )
-                                          }
-                                        />
+                                      <div className="flex items-center space-x-2">
+                                        <div className="flex-1">
+                                          <Input
+                                            placeholder="Video ID"
+                                            value={video.id}
+                                            onChange={(e) =>
+                                              updateVideo(
+                                                module.id,
+                                                section.id,
+                                                videoIndex,
+                                                "id",
+                                                e.target.value
+                                              )
+                                            }
+                                          />
+                                        </div>
+                                        <div className="w-32">
+                                          <Input
+                                            type="number"
+                                            placeholder="Duration (sec)"
+                                            min="0"
+                                            value={video.duration}
+                                            onChange={(e) =>
+                                              updateVideo(
+                                                module.id,
+                                                section.id,
+                                                videoIndex,
+                                                "duration",
+                                                parseInt(e.target.value) || 0
+                                              )
+                                            }
+                                          />
+                                        </div>
                                       </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-red-500"
-                                        onClick={() =>
-                                          removeVideo(
-                                            module.id,
-                                            section.id,
-                                            videoIndex
-                                          )
-                                        }
-                                        disabled={section.videos.length <= 1}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
                                     </div>
                                   ))}
 

@@ -3,6 +3,7 @@
 export interface Video {
   id: string;
   duration: number;
+  name: string;
 }
 
 export interface VideoSection {
@@ -47,6 +48,7 @@ export interface NewCourse {
 export interface VideoError {
   id?: string;
   duration?: string;
+  name?: string;
 }
 
 export interface SectionError {
