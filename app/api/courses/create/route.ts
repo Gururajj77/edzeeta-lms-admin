@@ -61,6 +61,7 @@ export async function POST(request: Request) {
             if (section.videos && section.videos.length > 0) {
               videos = section.videos.map((video) => ({
                 id: video.id,
+                name: video.name || "", // Include the name property
                 duration: video.duration || 0,
               }));
             }
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
               videos = [
                 {
                   id: section.videoId,
+                  name: "", // Add an empty name as default
                   duration: section.duration || 0,
                 },
               ];

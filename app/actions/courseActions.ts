@@ -1,4 +1,3 @@
-// app/actions/courseActions.ts
 "use server";
 
 import { getFirestore } from "firebase-admin/firestore";
@@ -75,5 +74,57 @@ export async function updateCourse(
   } catch (error) {
     console.error("Error updating course:", error);
     return { success: false, message: "Failed to update course" };
+  }
+}
+
+export async function deleteCourse(
+  courseId: string
+): Promise<UpdateCourseResult> {
+  try {
+    // Verify that the course exists
+    const courseDoc = await db.collection("courses").doc(courseId).get();
+    if (!courseDoc.exists) {
+      return { success: false, message: "Course not found" };
+    }
+
+    // Get all modules to delete their sections
+    const modulesSnapshot = await db
+      .collection("courses")
+      .doc(courseId)
+      .collection("modules")
+      .get();
+
+    // Delete all sections in each module
+    const deleteModulesPromises = modulesSnapshot.docs.map(
+      async (moduleDoc) => {
+        const sectionsSnapshot = await moduleDoc.ref
+          .collection("sections")
+          .get();
+
+        // Delete all sections in this module
+        const deleteSectionsPromises = sectionsSnapshot.docs.map((sectionDoc) =>
+          sectionDoc.ref.delete()
+        );
+
+        await Promise.all(deleteSectionsPromises);
+
+        // Delete the module
+        return moduleDoc.ref.delete();
+      }
+    );
+
+    // Wait for all modules and their sections to be deleted
+    await Promise.all(deleteModulesPromises);
+
+    // Finally delete the course document
+    await db.collection("courses").doc(courseId).delete();
+
+    // Revalidate the dashboard page to reflect changes
+    revalidatePath("/dashboard/update-course");
+
+    return { success: true, message: "Course deleted successfully" };
+  } catch (error) {
+    console.error("Error deleting course:", error);
+    return { success: false, message: "Failed to delete course" };
   }
 }

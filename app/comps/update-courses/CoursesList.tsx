@@ -20,6 +20,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +44,7 @@ import {
   Trash2,
   ArrowUp,
   ArrowDown,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Course,
@@ -41,12 +52,13 @@ import {
   VideoSection,
   Video,
 } from "../../types/admin/course-creation";
-import { updateCourse } from "@/app/actions/courseActions";
+import { updateCourse, deleteCourse } from "@/app/actions/courseActions";
 
 const CoursesList: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
@@ -58,6 +70,10 @@ const CoursesList: React.FC = () => {
     type: "success" | "error";
     message: string;
   } | null>(null);
+
+  // Delete confirmation dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
+  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
 
   // Fetch courses on component mount
   useEffect(() => {
@@ -126,6 +142,58 @@ const CoursesList: React.FC = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Function to handle course deletion
+  const handleDeleteCourse = async () => {
+    if (!courseToDelete) return;
+
+    setDeleting(true);
+    try {
+      const result = await deleteCourse(courseToDelete.id);
+
+      if (result.success) {
+        // Remove the course from the list
+        setCourses(courses.filter((course) => course.id !== courseToDelete.id));
+
+        // Show success notification
+        setNotification({
+          type: "success",
+          message: "Course deleted successfully!",
+        });
+
+        // Close the delete dialog
+        setIsDeleteDialogOpen(false);
+        setCourseToDelete(null);
+
+        // Clear the notification after delay
+        setTimeout(() => {
+          setNotification(null);
+        }, 3000);
+      } else {
+        setNotification({
+          type: "error",
+          message: result.message || "Failed to delete course",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setNotification({
+        type: "error",
+        message: "Error connecting to the server",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Function to open delete confirmation dialog
+  const openDeleteDialog = (course: Course, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setCourseToDelete(course);
+    setIsDeleteDialogOpen(true);
   };
 
   // Function to filter courses based on search query
@@ -407,6 +475,24 @@ const CoursesList: React.FC = () => {
             <Button onClick={fetchCourses}>Refresh</Button>
           </div>
 
+          {notification && (
+            <Alert
+              className={`mb-4 ${
+                notification.type === "success" ? "bg-green-50" : "bg-red-50"
+              }`}
+            >
+              <AlertDescription
+                className={
+                  notification.type === "success"
+                    ? "text-green-700"
+                    : "text-red-700"
+                }
+              >
+                {notification.message}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {error && (
             <Alert className="mb-4">
               <AlertDescription className="text-red-500">
@@ -427,18 +513,28 @@ const CoursesList: React.FC = () => {
                     <div className="flex-1 text-left font-medium">
                       {course.mainTitle}
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mr-2"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditCourse(course);
-                      }}
-                    >
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditCourse(course);
+                        }}
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-500 border-red-200 hover:bg-red-50"
+                        onClick={(e) => openDeleteDialog(course, e)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
+                      </Button>
+                    </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4">
                     <div className="space-y-2 mb-4">
@@ -629,6 +725,18 @@ const CoursesList: React.FC = () => {
                     }
                     rows={4}
                   />
+                </div>
+
+                <div className="flex justify-between items-center pt-4">
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className="text-red-500 border-red-200 hover:bg-red-50"
+                    onClick={() => openDeleteDialog(editingCourse)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Course
+                  </Button>
                 </div>
               </TabsContent>
 
@@ -882,6 +990,46 @@ const CoursesList: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Delete Course Confirmation Dialog */}
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center text-red-600">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              Delete Course
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;
+              <span className="font-medium">{courseToDelete?.mainTitle}</span>
+              &quot;?
+              <div className="mt-2 text-red-600">
+                This action cannot be undone. All modules, sections, and videos
+                in this course will be permanently removed.
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={deleting}
+              onClick={() => {
+                setCourseToDelete(null);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={handleDeleteCourse}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete Course"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
