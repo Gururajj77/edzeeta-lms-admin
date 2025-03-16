@@ -35,35 +35,72 @@ export async function updateCourse(
       });
 
     // Update modules and their sections
+
     // eslint-disable-next-line @next/next/no-assign-module-variable
     for (const module of courseData.modules) {
-      const moduleRef = db
-        .collection("courses")
-        .doc(courseId)
-        .collection("modules")
-        .doc(module.id);
+      // Check if this is a new module (with a temporary ID)
+      const isNewModule = module.id.startsWith("module-");
+      const moduleRef = isNewModule
+        ? db.collection("courses").doc(courseId).collection("modules").doc() // Generate a new Firestore ID
+        : db
+            .collection("courses")
+            .doc(courseId)
+            .collection("modules")
+            .doc(module.id);
 
-      // Update module
-      await moduleRef.update({
-        moduleName: module.moduleName,
-        description: module.description,
-        order: module.order,
-        updatedAt: new Date().toISOString(),
-      });
-
-      // Update sections
-      for (const section of module.sections) {
-        const sectionRef = moduleRef.collection("sections").doc(section.id);
-
-        // Update section
-        await sectionRef.update({
-          title: section.title,
-          description: section.description,
-          order: section.order,
-          videos: section.videos,
-          videoId: section.videoId,
+      // Create or update module
+      if (isNewModule) {
+        // Create new module
+        await moduleRef.set({
+          id: moduleRef.id,
+          moduleName: module.moduleName,
+          description: module.description,
+          order: module.order,
+          createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
+      } else {
+        // Update existing module
+        await moduleRef.update({
+          moduleName: module.moduleName,
+          description: module.description,
+          order: module.order,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // Process all sections for this module
+      for (const section of module.sections) {
+        // Check if this is a new section (with a temporary ID)
+        const isNewSection = section.id.startsWith("section-");
+        const sectionRef = isNewSection
+          ? moduleRef.collection("sections").doc() // Generate a new Firestore ID
+          : moduleRef.collection("sections").doc(section.id);
+
+        // Create or update section
+        if (isNewSection) {
+          // Create new section
+          await sectionRef.set({
+            id: sectionRef.id,
+            title: section.title,
+            description: section.description,
+            order: section.order,
+            videos: section.videos,
+            videoId: section.videoId || null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          // Update existing section
+          await sectionRef.update({
+            title: section.title,
+            description: section.description,
+            order: section.order,
+            videos: section.videos,
+            videoId: section.videoId || null,
+            updatedAt: new Date().toISOString(),
+          });
+        }
       }
     }
 

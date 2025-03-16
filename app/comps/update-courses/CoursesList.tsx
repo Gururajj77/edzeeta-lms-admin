@@ -35,6 +35,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@radix-ui/react-select";
 import {
   Search,
   Video as VidIcon,
@@ -45,6 +47,13 @@ import {
   ArrowUp,
   ArrowDown,
   AlertTriangle,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Layers,
+  BookOpen,
+  Info,
+  Save,
 } from "lucide-react";
 import {
   Course,
@@ -451,41 +460,132 @@ const CoursesList: React.FC = () => {
       modules: newModules,
     });
   };
+  // Calculate total videos and duration in a module
+  const calculateModuleTotals = (module: CourseModule) => {
+    let totalVideos = 0;
+    let totalDuration = 0;
 
+    module.sections.forEach((section) => {
+      totalVideos += countVideos(section);
+      totalDuration += calculateSectionDuration(section);
+    });
+
+    return { totalVideos, totalDuration };
+  };
+
+  // Add a new module to the course
+  const addModule = () => {
+    if (!editingCourse) return;
+
+    // Find the highest order to place new module at the end
+    const highestOrder = editingCourse.modules.reduce(
+      (max, module) => (module.order > max ? module.order : max),
+      0
+    );
+
+    const newModule = {
+      id: `module-${Date.now()}`, // Generate a temporary ID
+      moduleName: "New Module",
+      description: "",
+      order: highestOrder + 1,
+      sections: [], // Start with no sections
+    };
+
+    setEditingCourse({
+      ...editingCourse,
+      modules: [...editingCourse.modules, newModule],
+    });
+  };
+
+  // Add a new section to a module
+  const addSection = (moduleId: string) => {
+    if (!editingCourse) return;
+
+    const moduleIndex = editingCourse.modules.findIndex(
+      (module) => module.id === moduleId
+    );
+    if (moduleIndex === -1) return;
+
+    // Find the highest order for this module's sections
+    const highestOrder = editingCourse.modules[moduleIndex].sections.reduce(
+      (max, section) => (section.order > max ? section.order : max),
+      0
+    );
+
+    const newSection = {
+      id: `section-${Date.now()}`, // Generate a temporary ID
+      title: "New Section",
+      description: "",
+      order: highestOrder + 1,
+      videos: [{ id: "", name: "", duration: 0 }], // Start with one empty video
+    };
+
+    const updatedModules = [...editingCourse.modules];
+    updatedModules[moduleIndex] = {
+      ...updatedModules[moduleIndex],
+      sections: [...updatedModules[moduleIndex].sections, newSection],
+    };
+
+    setEditingCourse({
+      ...editingCourse,
+      modules: updatedModules,
+    });
+  };
+  // Main component return JSX
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Courses List</CardTitle>
-          <CardDescription>
-            View all courses and their content structure
-          </CardDescription>
+    <div className="container mx-auto py-8 space-y-8">
+      <Card className="shadow-sm border-gray-200">
+        <CardHeader className="pb-4 bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle className="text-2xl font-bold text-gray-800">
+                Courses Dashboard
+              </CardTitle>
+              <CardDescription className="text-gray-600 mt-1">
+                Manage and organize your course content structure
+              </CardDescription>
+            </div>
+            <Button
+              onClick={fetchCourses}
+              variant="outline"
+              className="flex items-center gap-2 hover:bg-gray-100 transition-colors"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="flex items-center space-x-2 mb-6">
             <div className="relative flex-1">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search courses..."
-                className="pl-8"
+                placeholder="Search courses by title or description..."
+                className="pl-10 py-5 border-gray-300 focus:border-blue-400 transition-colors"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button onClick={fetchCourses}>Refresh</Button>
           </div>
 
           {notification && (
             <Alert
-              className={`mb-4 ${
-                notification.type === "success" ? "bg-green-50" : "bg-red-50"
-              }`}
+              className={`mb-6 ${
+                notification.type === "success"
+                  ? "bg-green-50 border-green-200"
+                  : "bg-red-50 border-red-200"
+              } flex items-center`}
             >
+              {notification.type === "success" ? (
+                <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+              ) : (
+                <XCircle className="h-5 w-5 text-red-500 mr-2" />
+              )}
               <AlertDescription
                 className={
                   notification.type === "success"
-                    ? "text-green-700"
-                    : "text-red-700"
+                    ? "text-green-700 font-medium"
+                    : "text-red-700 font-medium"
                 }
               >
                 {notification.message}
@@ -494,24 +594,46 @@ const CoursesList: React.FC = () => {
           )}
 
           {error && (
-            <Alert className="mb-4">
-              <AlertDescription className="text-red-500">
+            <Alert className="mb-6 bg-red-50 border-red-200 flex items-center">
+              <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+              <AlertDescription className="text-red-700 font-medium">
                 {error}
               </AlertDescription>
             </Alert>
           )}
 
           {loading ? (
-            <div className="text-center py-10">Loading courses...</div>
+            <div className="text-center py-20">
+              <RefreshCw className="h-10 w-10 text-gray-400 animate-spin mx-auto mb-4" />
+              <p className="text-gray-500 font-medium">Loading courses...</p>
+            </div>
           ) : filteredCourses.length === 0 ? (
-            <div className="text-center py-10">No courses found</div>
+            <div className="text-center py-20 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+              <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600 font-medium">No courses found</p>
+              <p className="text-gray-500 text-sm mt-2">
+                Try adjusting your search criteria
+              </p>
+            </div>
           ) : (
-            <Accordion type="multiple" className="w-full">
+            <Accordion type="multiple" className="w-full space-y-3">
               {filteredCourses.map((course) => (
-                <AccordionItem key={course.id} value={course.id}>
-                  <AccordionTrigger className="px-4 py-2 hover:bg-gray-50">
-                    <div className="flex-1 text-left font-medium">
+                <AccordionItem
+                  key={course.id}
+                  value={course.id}
+                  className="border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow transition-shadow"
+                >
+                  <AccordionTrigger className="px-5 py-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex-1 text-left font-medium text-gray-800 flex items-center gap-3">
+                      <BookOpen className="h-5 w-5 text-blue-500" />
                       {course.mainTitle}
+                      <Badge
+                        variant="outline"
+                        className="ml-3 text-xs font-normal bg-blue-50 text-blue-600 border-blue-200"
+                      >
+                        {course.modules.length}{" "}
+                        {course.modules.length === 1 ? "module" : "modules"}
+                      </Badge>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -521,134 +643,161 @@ const CoursesList: React.FC = () => {
                           e.stopPropagation();
                           handleEditCourse(course);
                         }}
+                        className="flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50 transition-colors"
                       >
-                        <Edit className="h-4 w-4 mr-1" />
+                        <Edit className="h-4 w-4" />
                         Edit
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="text-red-500 border-red-200 hover:bg-red-50"
+                        className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50 transition-colors"
                         onClick={(e) => openDeleteDialog(course, e)}
                       >
-                        <Trash2 className="h-4 w-4 mr-1" />
+                        <Trash2 className="h-4 w-4" />
                         Delete
                       </Button>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent className="px-4 pb-4">
-                    <div className="space-y-2 mb-4">
-                      <p className="text-sm text-gray-600">
+                  <AccordionContent className="px-6 pt-2 pb-6 bg-white">
+                    <div className="space-y-4 mb-6">
+                      <p className="text-gray-600 italic border-l-4 border-gray-200 pl-3 py-1">
                         {course.description || "No description provided"}
                       </p>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       {course.modules
                         .sort((a, b) => a.order - b.order)
-                        .map((module) => (
-                          <Card
-                            key={module.id}
-                            className="border border-gray-200"
-                          >
-                            <CardHeader className="py-3">
-                              <CardTitle className="text-base">
-                                Module: {module.moduleName}
-                              </CardTitle>
-                              <CardDescription>
-                                {module.description ||
-                                  "No description provided"}
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent className="py-2">
-                              <div className="space-y-3">
-                                {module.sections
-                                  .sort((a, b) => a.order - b.order)
-                                  .map((section) => (
-                                    <div
-                                      key={section.id}
-                                      className="border border-gray-100 rounded-md p-3"
-                                    >
-                                      <div className="flex justify-between items-center mb-2">
-                                        <h3 className="font-medium">
-                                          {section.title}
-                                        </h3>
-                                        <div className="flex items-center text-xs text-gray-500 space-x-3">
-                                          <div className="flex items-center">
-                                            <VidIcon className="h-3 w-3 mr-1" />
-                                            <span>
-                                              {countVideos(section)} videos
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center">
-                                            <Clock className="h-3 w-3 mr-1" />
-                                            <span>
-                                              {formatDuration(
-                                                calculateSectionDuration(
-                                                  section
-                                                )
-                                              )}
-                                            </span>
-                                          </div>
-                                        </div>
+                        .map((module) => {
+                          const { totalVideos, totalDuration } =
+                            calculateModuleTotals(module);
+
+                          return (
+                            <Card
+                              key={module.id}
+                              className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                            >
+                              <CardHeader className="py-4 bg-gray-50">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <CardTitle className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                                      <Layers className="h-4 w-4 text-indigo-500" />
+                                      {module.moduleName}
+                                    </CardTitle>
+                                    <div className="flex items-center mt-1 space-x-4 text-xs text-gray-500">
+                                      <div className="flex items-center">
+                                        <VidIcon className="h-3 w-3 mr-1 text-indigo-400" />
+                                        <span>{totalVideos} videos</span>
                                       </div>
-
-                                      <p className="text-sm text-gray-600 mb-2">
-                                        {section.description ||
-                                          "No description provided"}
-                                      </p>
-
-                                      {section.videos &&
-                                      section.videos.length > 0 ? (
-                                        <div className="pl-3 border-l-2 border-gray-200 space-y-1 mt-2">
-                                          {section.videos.map(
-                                            (video, index) => (
-                                              <div
-                                                key={index}
-                                                className="flex justify-between text-sm"
-                                              >
-                                                <span className="text-gray-700">
-                                                  {index + 1}.{" "}
-                                                  {video.name ? (
-                                                    <span className="font-medium">
-                                                      {video.name}
-                                                    </span>
-                                                  ) : (
-                                                    video.id ||
-                                                    "Video ID not set"
-                                                  )}
-                                                </span>
-                                                <span className="text-gray-500">
-                                                  {formatDuration(
-                                                    video.duration || 0
-                                                  )}
-                                                </span>
-                                              </div>
-                                            )
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <p className="text-sm text-gray-500 italic">
-                                          No videos in this section
-                                        </p>
-                                      )}
+                                      <div className="flex items-center">
+                                        <Clock className="h-3 w-3 mr-1 text-indigo-400" />
+                                        <span>
+                                          {formatDuration(totalDuration)}
+                                        </span>
+                                      </div>
                                     </div>
-                                  ))}
+                                  </div>
+                                </div>
+                                <CardDescription className="mt-2 text-gray-600">
+                                  {module.description ||
+                                    "No description provided"}
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent className="py-4">
+                                <div className="space-y-4">
+                                  {module.sections
+                                    .sort((a, b) => a.order - b.order)
+                                    .map((section) => (
+                                      <div
+                                        key={section.id}
+                                        className="border border-gray-200 rounded-md p-4 hover:border-indigo-200 transition-colors"
+                                      >
+                                        <div className="flex justify-between items-center mb-3">
+                                          <h3 className="font-medium text-gray-800 flex items-center gap-2">
+                                            <Info className="h-4 w-4 text-indigo-500" />
+                                            {section.title}
+                                          </h3>
+                                          <div className="flex items-center text-xs text-gray-500 space-x-3">
+                                            <div className="flex items-center">
+                                              <VidIcon className="h-3 w-3 mr-1 text-indigo-400" />
+                                              <span>
+                                                {countVideos(section)} videos
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center">
+                                              <Clock className="h-3 w-3 mr-1 text-indigo-400" />
+                                              <span>
+                                                {formatDuration(
+                                                  calculateSectionDuration(
+                                                    section
+                                                  )
+                                                )}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
 
-                                {module.sections.length === 0 && (
-                                  <p className="text-sm text-gray-500 italic py-2">
-                                    This module has no sections.
-                                  </p>
-                                )}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
+                                        <p className="text-sm text-gray-600 mb-3">
+                                          {section.description ||
+                                            "No description provided"}
+                                        </p>
+
+                                        {section.videos &&
+                                        section.videos.length > 0 ? (
+                                          <div className="pl-4 border-l-2 border-indigo-100 space-y-2 mt-4">
+                                            {section.videos.map(
+                                              (video, index) => (
+                                                <div
+                                                  key={index}
+                                                  className="flex justify-between text-sm p-2 rounded-md hover:bg-gray-50"
+                                                >
+                                                  <span className="text-gray-700 flex items-center">
+                                                    <VidIcon className="h-3 w-3 mr-2 text-indigo-400" />
+                                                    <span className="font-medium text-gray-700">
+                                                      {video.name ||
+                                                        video.id ||
+                                                        "Video ID not set"}
+                                                    </span>
+                                                  </span>
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-xs bg-gray-50 text-gray-600 border-gray-200"
+                                                  >
+                                                    {formatDuration(
+                                                      video.duration || 0
+                                                    )}
+                                                  </Badge>
+                                                </div>
+                                              )
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="text-sm text-gray-500 italic bg-gray-50 p-3 rounded-md flex items-center mt-3">
+                                            <AlertTriangle className="h-3 w-3 mr-2 text-amber-400" />
+                                            No videos in this section
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+
+                                  {module.sections.length === 0 && (
+                                    <div className="text-sm text-gray-500 italic bg-gray-50 p-4 rounded-md flex items-center justify-center">
+                                      <AlertTriangle className="h-4 w-4 mr-2 text-amber-400" />
+                                      This module has no sections.
+                                    </div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
 
                       {course.modules.length === 0 && (
-                        <p className="text-sm text-gray-500 italic py-2">
-                          This course has no modules.
-                        </p>
+                        <div className="text-sm text-gray-500 italic bg-gray-50 p-6 rounded-md flex flex-col items-center justify-center">
+                          <AlertTriangle className="h-6 w-6 mb-2 text-amber-400" />
+                          <p>This course has no modules.</p>
+                        </div>
                       )}
                     </div>
                   </AccordionContent>
@@ -661,25 +810,35 @@ const CoursesList: React.FC = () => {
 
       {/* Edit Course Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Course</DialogTitle>
-            <DialogDescription>
-              Make changes to the course content and modules
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="p-6 bg-gradient-to-r from-gray-50 to-white border-b">
+            <DialogTitle className="text-xl text-gray-800 flex items-center gap-2">
+              <Edit className="h-5 w-5 text-blue-500" />
+              Edit Course
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Make changes to the course content and structure
             </DialogDescription>
           </DialogHeader>
 
           {notification && (
             <Alert
-              className={
-                notification.type === "success" ? "bg-green-50" : "bg-red-50"
-              }
+              className={`mx-6 mt-4 ${
+                notification.type === "success"
+                  ? "bg-green-50 border-green-200"
+                  : "bg-red-50 border-red-200"
+              } flex items-center`}
             >
+              {notification.type === "success" ? (
+                <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+              ) : (
+                <XCircle className="h-5 w-5 text-red-500 mr-2" />
+              )}
               <AlertDescription
                 className={
                   notification.type === "success"
-                    ? "text-green-700"
-                    : "text-red-700"
+                    ? "text-green-700 font-medium"
+                    : "text-red-700 font-medium"
                 }
               >
                 {notification.message}
@@ -688,343 +847,503 @@ const CoursesList: React.FC = () => {
           )}
 
           {editingCourse && (
-            <Tabs
-              defaultValue="general"
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="w-full"
-            >
-              <TabsList className="mb-4">
-                <TabsTrigger value="general">General</TabsTrigger>
-                <TabsTrigger value="modules">Modules</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="general" className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Course Title</label>
-                  <Input
-                    value={editingCourse.mainTitle}
-                    onChange={(e) =>
-                      setEditingCourse({
-                        ...editingCourse,
-                        mainTitle: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description</label>
-                  <Textarea
-                    value={editingCourse.description || ""}
-                    onChange={(e) =>
-                      setEditingCourse({
-                        ...editingCourse,
-                        description: e.target.value,
-                      })
-                    }
-                    rows={4}
-                  />
-                </div>
-
-                <div className="flex justify-between items-center pt-4">
-                  <Button
-                    variant="outline"
-                    type="button"
-                    className="text-red-500 border-red-200 hover:bg-red-50"
-                    onClick={() => openDeleteDialog(editingCourse)}
+            <div className="p-6">
+              <Tabs
+                defaultValue="general"
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="w-full"
+              >
+                <TabsList className="mb-6 bg-gray-100 p-1 rounded-lg">
+                  <TabsTrigger
+                    value="general"
+                    className="data-[state=active]:bg-white data-[state=active]:text-blue-600 rounded-md px-4 py-2 flex items-center gap-2"
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Course
-                  </Button>
-                </div>
-              </TabsContent>
+                    <Info className="h-4 w-4" />
+                    General
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="modules"
+                    className="data-[state=active]:bg-white data-[state=active]:text-blue-600 rounded-md px-4 py-2 flex items-center gap-2"
+                  >
+                    <Layers className="h-4 w-4" />
+                    Modules
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="modules" className="space-y-6">
-                {editingCourse.modules
-                  .sort((a, b) => a.order - b.order)
-                  .map((module, moduleIndex) => (
-                    <Card key={module.id} className="border border-gray-200">
-                      <CardHeader className="py-3">
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-2 flex-1 mr-4">
-                            <label className="text-sm font-medium">
-                              Module Name
-                            </label>
-                            <Input
-                              value={module.moduleName}
-                              onChange={(e) =>
-                                updateModule(
-                                  module.id,
-                                  "moduleName",
-                                  e.target.value
-                                )
-                              }
-                            />
+                <TabsContent value="general" className="space-y-6 mt-2">
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700">
+                      Course Title
+                    </label>
+                    <Input
+                      value={editingCourse.mainTitle}
+                      onChange={(e) =>
+                        setEditingCourse({
+                          ...editingCourse,
+                          mainTitle: e.target.value,
+                        })
+                      }
+                      className="border-gray-300 focus:border-blue-400 transition-colors"
+                    />
+                  </div>
 
-                            <label className="text-sm font-medium">
-                              Module Description
-                            </label>
-                            <Textarea
-                              value={module.description || ""}
-                              onChange={(e) =>
-                                updateModule(
-                                  module.id,
-                                  "description",
-                                  e.target.value
-                                )
-                              }
-                              rows={2}
-                            />
-                          </div>
-                          <div className="flex flex-col space-y-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={moduleIndex === 0}
-                              onClick={() => moveModule(module.id, "up")}
-                            >
-                              <ArrowUp className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={
-                                moduleIndex === editingCourse.modules.length - 1
-                              }
-                              onClick={() => moveModule(module.id, "down")}
-                            >
-                              <ArrowDown className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="py-2">
-                        <h4 className="font-medium text-sm mb-3">Sections</h4>
-                        <div className="space-y-4">
-                          {module.sections
-                            .sort((a, b) => a.order - b.order)
-                            .map((section, sectionIndex) => (
-                              <div
-                                key={section.id}
-                                className="border border-gray-200 rounded-md p-3"
-                              >
-                                <div className="flex items-start justify-between mb-3">
-                                  <div className="space-y-2 flex-1 mr-4">
-                                    <label className="text-sm font-medium">
-                                      Section Title
-                                    </label>
-                                    <Input
-                                      value={section.title}
-                                      onChange={(e) =>
-                                        updateSection(
-                                          module.id,
-                                          section.id,
-                                          "title",
-                                          e.target.value
-                                        )
-                                      }
-                                    />
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700">
+                      Description
+                    </label>
+                    <Textarea
+                      value={editingCourse.description || ""}
+                      onChange={(e) =>
+                        setEditingCourse({
+                          ...editingCourse,
+                          description: e.target.value,
+                        })
+                      }
+                      rows={5}
+                      className="border-gray-300 focus:border-blue-400 transition-colors resize-none"
+                      placeholder="Add a detailed description of this course..."
+                    />
+                  </div>
 
-                                    <label className="text-sm font-medium">
-                                      Section Description
-                                    </label>
-                                    <Textarea
-                                      value={section.description || ""}
-                                      onChange={(e) =>
-                                        updateSection(
-                                          module.id,
-                                          section.id,
-                                          "description",
-                                          e.target.value
-                                        )
-                                      }
-                                      rows={2}
-                                    />
-                                  </div>
-                                  <div className="flex flex-col space-y-1">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      disabled={sectionIndex === 0}
-                                      onClick={() =>
-                                        moveSection(module.id, section.id, "up")
-                                      }
-                                    >
-                                      <ArrowUp className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      disabled={
-                                        sectionIndex ===
-                                        module.sections.length - 1
-                                      }
-                                      onClick={() =>
-                                        moveSection(
-                                          module.id,
-                                          section.id,
-                                          "down"
-                                        )
-                                      }
-                                    >
-                                      <ArrowDown className="h-4 w-4" />
-                                    </Button>
-                                  </div>
+                  <div className="flex justify-between items-center pt-4">
+                    <Button
+                      variant="outline"
+                      type="button"
+                      className="text-red-600 border-red-200 hover:bg-red-50 transition-colors flex items-center gap-2"
+                      onClick={() => openDeleteDialog(editingCourse)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Course
+                    </Button>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="modules" className="space-y-8 mt-2">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium text-gray-800">
+                      Course Modules
+                    </h3>
+                    <Button
+                      variant="outline"
+                      onClick={addModule}
+                      className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Module
+                    </Button>
+                  </div>
+
+                  {editingCourse.modules.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                      <Layers className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600 font-medium">
+                        No modules in this course
+                      </p>
+                      <p className="text-gray-500 text-sm mt-2 mb-4">
+                        Add a module to organize your course content
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={addModule}
+                        className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 transition-colors"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add First Module
+                      </Button>
+                    </div>
+                  ) : (
+                    editingCourse.modules
+                      .sort((a, b) => a.order - b.order)
+                      .map((module, moduleIndex) => (
+                        <Card
+                          key={module.id}
+                          className="border border-gray-200 shadow-sm"
+                        >
+                          <CardHeader className="py-4 bg-gray-50">
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-3 flex-1 mr-4">
+                                <div>
+                                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                                    Module Name
+                                  </label>
+                                  <Input
+                                    value={module.moduleName}
+                                    onChange={(e) =>
+                                      updateModule(
+                                        module.id,
+                                        "moduleName",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="border-gray-300 focus:border-blue-400 transition-colors"
+                                    placeholder="Enter module name..."
+                                  />
                                 </div>
 
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <h5 className="text-sm font-medium">
-                                      Videos
-                                    </h5>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() =>
-                                        addVideo(module.id, section.id)
-                                      }
-                                    >
-                                      <Plus className="h-3 w-3 mr-1" />
-                                      Add Video
-                                    </Button>
-                                  </div>
-
-                                  {section.videos.map((video, videoIndex) => (
+                                <div>
+                                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                                    Module Description
+                                  </label>
+                                  <Textarea
+                                    value={module.description || ""}
+                                    onChange={(e) =>
+                                      updateModule(
+                                        module.id,
+                                        "description",
+                                        e.target.value
+                                      )
+                                    }
+                                    rows={2}
+                                    className="border-gray-300 focus:border-blue-400 transition-colors resize-none"
+                                    placeholder="Add a brief description of this module..."
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex flex-col space-y-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={moduleIndex === 0}
+                                  onClick={() => moveModule(module.id, "up")}
+                                  className="flex items-center gap-1 hover:bg-gray-50 transition-colors"
+                                >
+                                  <ArrowUp className="h-4 w-4" />
+                                  <span className="sr-only">Move up</span>
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={
+                                    moduleIndex ===
+                                    editingCourse.modules.length - 1
+                                  }
+                                  onClick={() => moveModule(module.id, "down")}
+                                  className="flex items-center gap-1 hover:bg-gray-50 transition-colors"
+                                >
+                                  <ArrowDown className="h-4 w-4" />
+                                  <span className="sr-only">Move down</span>
+                                </Button>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="py-4">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="font-medium text-gray-800 flex items-center gap-2">
+                                <Info className="h-4 w-4 text-blue-500" />
+                                Sections
+                              </h4>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => addSection(module.id)}
+                                className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add Section
+                              </Button>
+                            </div>
+                            {module.sections.length === 0 ? (
+                              <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                                <Info className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                                <p className="text-gray-600 font-medium">
+                                  No sections in this module
+                                </p>
+                                <p className="text-gray-500 text-sm mt-1 mb-3">
+                                  Add a section to organize your videos
+                                </p>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => addSection(module.id)}
+                                  className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 transition-colors"
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add First Section
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="space-y-6">
+                                {module.sections
+                                  .sort((a, b) => a.order - b.order)
+                                  .map((section, sectionIndex) => (
                                     <div
-                                      key={videoIndex}
-                                      className="space-y-2 border-l-2 border-gray-100 pl-2 py-2 mb-3"
+                                      key={section.id}
+                                      className="border border-gray-200 rounded-md p-4 shadow-sm"
                                     >
-                                      <div className="flex items-center space-x-2">
-                                        <div className="flex-1">
-                                          <Input
-                                            placeholder="Video Name"
-                                            value={video.name || ""}
-                                            onChange={(e) =>
-                                              updateVideo(
+                                      <div className="flex items-start justify-between mb-4">
+                                        <div className="space-y-3 flex-1 mr-4">
+                                          <div>
+                                            <label className="text-sm font-medium text-gray-700 mb-1 block">
+                                              Section Title
+                                            </label>
+                                            <Input
+                                              value={section.title}
+                                              onChange={(e) =>
+                                                updateSection(
+                                                  module.id,
+                                                  section.id,
+                                                  "title",
+                                                  e.target.value
+                                                )
+                                              }
+                                              className="border-gray-300 focus:border-blue-400 transition-colors"
+                                              placeholder="Enter section title..."
+                                            />
+                                          </div>
+
+                                          <div>
+                                            <label className="text-sm font-medium text-gray-700 mb-1 block">
+                                              Section Description
+                                            </label>
+                                            <Textarea
+                                              value={section.description || ""}
+                                              onChange={(e) =>
+                                                updateSection(
+                                                  module.id,
+                                                  section.id,
+                                                  "description",
+                                                  e.target.value
+                                                )
+                                              }
+                                              rows={2}
+                                              className="border-gray-300 focus:border-blue-400 transition-colors resize-none"
+                                              placeholder="Add a description for this section..."
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-col space-y-1">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={sectionIndex === 0}
+                                            onClick={() =>
+                                              moveSection(
                                                 module.id,
                                                 section.id,
-                                                videoIndex,
-                                                "name",
-                                                e.target.value
+                                                "up"
                                               )
                                             }
-                                          />
+                                            className="flex items-center gap-1 hover:bg-gray-50 transition-colors"
+                                          >
+                                            <ArrowUp className="h-4 w-4" />
+                                            <span className="sr-only">
+                                              Move up
+                                            </span>
+                                          </Button>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={
+                                              sectionIndex ===
+                                              module.sections.length - 1
+                                            }
+                                            onClick={() =>
+                                              moveSection(
+                                                module.id,
+                                                section.id,
+                                                "down"
+                                              )
+                                            }
+                                            className="flex items-center gap-1 hover:bg-gray-50 transition-colors"
+                                          >
+                                            <ArrowDown className="h-4 w-4" />
+                                            <span className="sr-only">
+                                              Move down
+                                            </span>
+                                          </Button>
                                         </div>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="text-red-500"
-                                          onClick={() =>
-                                            removeVideo(
-                                              module.id,
-                                              section.id,
-                                              videoIndex
-                                            )
-                                          }
-                                          disabled={section.videos.length <= 1}
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
                                       </div>
-                                      <div className="flex items-center space-x-2">
-                                        <div className="flex-1">
-                                          <Input
-                                            placeholder="Video ID"
-                                            value={video.id}
-                                            onChange={(e) =>
-                                              updateVideo(
-                                                module.id,
-                                                section.id,
-                                                videoIndex,
-                                                "id",
-                                                e.target.value
-                                              )
+
+                                      <Separator className="my-4" />
+
+                                      <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                          <h5 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                                            <VidIcon className="h-4 w-4 text-blue-500" />
+                                            Videos
+                                          </h5>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              addVideo(module.id, section.id)
                                             }
-                                          />
+                                            className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                            Add Video
+                                          </Button>
                                         </div>
-                                        <div className="w-32">
-                                          <Input
-                                            type="number"
-                                            placeholder="Duration (sec)"
-                                            min="0"
-                                            value={video.duration}
-                                            onChange={(e) =>
-                                              updateVideo(
-                                                module.id,
-                                                section.id,
-                                                videoIndex,
-                                                "duration",
-                                                parseInt(e.target.value) || 0
-                                              )
-                                            }
-                                          />
-                                        </div>
+
+                                        {section.videos.map(
+                                          (video, videoIndex) => (
+                                            <div
+                                              key={videoIndex}
+                                              className="space-y-3 border-l-2 border-blue-100 pl-3 py-3 bg-gray-50 rounded-md"
+                                            >
+                                              <div className="flex items-center space-x-2">
+                                                <div className="flex-1">
+                                                  <Input
+                                                    placeholder="Video Name"
+                                                    value={video.name || ""}
+                                                    onChange={(e) =>
+                                                      updateVideo(
+                                                        module.id,
+                                                        section.id,
+                                                        videoIndex,
+                                                        "name",
+                                                        e.target.value
+                                                      )
+                                                    }
+                                                    className="border-gray-300 focus:border-blue-400 transition-colors"
+                                                  />
+                                                </div>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  className="text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+                                                  onClick={() =>
+                                                    removeVideo(
+                                                      module.id,
+                                                      section.id,
+                                                      videoIndex
+                                                    )
+                                                  }
+                                                  disabled={
+                                                    section.videos.length <= 1
+                                                  }
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                  <span className="sr-only">
+                                                    Remove
+                                                  </span>
+                                                </Button>
+                                              </div>
+                                              <div className="flex items-center space-x-2">
+                                                <div className="flex-1">
+                                                  <Input
+                                                    placeholder="Video ID"
+                                                    value={video.id}
+                                                    onChange={(e) =>
+                                                      updateVideo(
+                                                        module.id,
+                                                        section.id,
+                                                        videoIndex,
+                                                        "id",
+                                                        e.target.value
+                                                      )
+                                                    }
+                                                    className="border-gray-300 focus:border-blue-400 transition-colors"
+                                                  />
+                                                </div>
+                                                <div className="w-32">
+                                                  <Input
+                                                    type="number"
+                                                    placeholder="Duration (sec)"
+                                                    min="0"
+                                                    value={video.duration}
+                                                    onChange={(e) =>
+                                                      updateVideo(
+                                                        module.id,
+                                                        section.id,
+                                                        videoIndex,
+                                                        "duration",
+                                                        parseInt(
+                                                          e.target.value
+                                                        ) || 0
+                                                      )
+                                                    }
+                                                    className="border-gray-300 focus:border-blue-400 transition-colors"
+                                                  />
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )
+                                        )}
+
+                                        {section.videos.length === 0 && (
+                                          <div className="text-sm text-gray-500 italic bg-gray-50 p-3 rounded-md flex items-center justify-center">
+                                            <AlertTriangle className="h-4 w-4 mr-2 text-amber-400" />
+                                            No videos in this section
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   ))}
-
-                                  {section.videos.length === 0 && (
-                                    <p className="text-sm text-gray-500 italic">
-                                      No videos in this section
-                                    </p>
-                                  )}
-                                </div>
                               </div>
-                            ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </TabsContent>
-            </Tabs>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))
+                  )}
+                </TabsContent>
+              </Tabs>
+            </div>
           )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+          <DialogFooter className="p-6 bg-gray-50 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setIsModalOpen(false)}
+              className="hover:bg-gray-100 transition-colors"
+            >
               Cancel
             </Button>
-            <Button onClick={saveCourseUpdates} disabled={saving}>
+            <Button
+              onClick={saveCourseUpdates}
+              disabled={saving}
+              className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+            >
+              <Save className="h-4 w-4" />
               {saving ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       {/* Delete Course Confirmation Dialog */}
       <AlertDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center text-red-600">
               <AlertTriangle className="h-5 w-5 mr-2" />
               Delete Course
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &quot;
-              <span className="font-medium">{courseToDelete?.mainTitle}</span>
-              &quot;?
-              <div className="mt-2 text-red-600">
-                This action cannot be undone. All modules, sections, and videos
-                in this course will be permanently removed.
+            <AlertDialogDescription className="space-y-4">
+              <p>
+                Are you sure you want to delete &quot;
+                <span className="font-medium">{courseToDelete?.mainTitle}</span>
+                &quot;?
+              </p>
+              <div className="bg-red-50 p-3 rounded-md text-red-600 border border-red-200 flex items-start mt-2">
+                <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                <span>
+                  This action cannot be undone. All modules, sections, and
+                  videos in this course will be permanently removed.
+                </span>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="mt-6">
             <AlertDialogCancel
               disabled={deleting}
               onClick={() => {
                 setCourseToDelete(null);
               }}
+              className="hover:bg-gray-100 transition-colors"
             >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
               onClick={handleDeleteCourse}
               disabled={deleting}
             >
+              <Trash2 className="h-4 w-4" />
               {deleting ? "Deleting..." : "Delete Course"}
             </AlertDialogAction>
           </AlertDialogFooter>
