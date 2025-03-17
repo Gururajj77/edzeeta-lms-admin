@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { updateUserCourses as updateUserCoursesAction } from "@/app/actions/userActions";
 
 interface Course {
   id: string;
@@ -86,24 +87,18 @@ export function useUserDashboard() {
     setSelectedUser(null);
   };
 
+  // Updated to use the server action
   const updateUserCourses = async (courseIds: string[]) => {
     if (!selectedUser) return;
 
     try {
       setProcessingAction(true);
-      const response = await fetch(
-        `/api/users/${selectedUser.id}/update-courses`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ courseIds }),
-        }
-      );
 
-      const data = await response.json();
+      // Call the server action directly
+      const result = await updateUserCoursesAction(selectedUser.id, courseIds);
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to update courses");
+      if (!result.success) {
+        throw new Error(result.message || "Failed to update courses");
       }
 
       // Update local state to reflect changes
