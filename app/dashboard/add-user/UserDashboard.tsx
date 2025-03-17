@@ -55,10 +55,6 @@ export default function UserDashboard() {
   );
 
   // Function to get course title by ID
-  const getCourseTitle = (courseId: string) => {
-    const course = courses.find((c) => c.id === courseId);
-    return course ? course.mainTitle : "Unknown Course";
-  };
 
   return (
     <Card className="shadow-sm border-gray-200">
@@ -151,15 +147,22 @@ export default function UserDashboard() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {user.courseIds && user.courseIds.length > 0 ? (
-                            user.courseIds.map((courseId) => (
-                              <Badge
-                                key={courseId}
-                                variant="secondary"
-                                className="text-xs"
-                              >
-                                {getCourseTitle(courseId)}
-                              </Badge>
-                            ))
+                            user.courseIds
+                              .map((courseId) => {
+                                const course = courses.find(
+                                  (c) => c.id === courseId
+                                );
+                                return course && course.mainTitle ? (
+                                  <Badge
+                                    key={courseId}
+                                    variant="secondary"
+                                    className="text-xs"
+                                  >
+                                    {course.mainTitle}
+                                  </Badge>
+                                ) : null;
+                              })
+                              .filter(Boolean) // Remove any null values from the array
                           ) : (
                             <span className="text-gray-400 text-sm italic">
                               No courses assigned
