@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { updateUserCourses as updateUserCoursesAction } from "@/app/actions/userActions";
+import { deleteUser as deleteUserAction } from "@/app/actions/deleteUserAction";
 
 interface Course {
   id: string;
@@ -24,6 +25,7 @@ export function useUserDashboard() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] =
     useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [processingAction, setProcessingAction] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -87,7 +89,17 @@ export function useUserDashboard() {
     setSelectedUser(null);
   };
 
-  // Updated to use the server action
+  const openDeleteModal = (user: User) => {
+    setSelectedUser(user);
+    setIsDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setSelectedUser(null);
+  };
+
+  // Update user courses
   const updateUserCourses = async (courseIds: string[]) => {
     if (!selectedUser) return;
 
@@ -122,6 +134,35 @@ export function useUserDashboard() {
     }
   };
 
+  // Delete user
+  const deleteUser = async (userId: string) => {
+    try {
+      setProcessingAction(true);
+
+      // Call the server action to delete the user
+      const result = await deleteUserAction(userId);
+
+      if (!result.success) {
+        throw new Error(result.message || "Failed to delete user");
+      }
+
+      // Update local state by removing the deleted user
+      setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userId));
+
+      setSuccessMessage("User deleted successfully");
+      closeDeleteModal();
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete user");
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
   const clearError = () => {
     setError(null);
   };
@@ -134,6 +175,7 @@ export function useUserDashboard() {
     selectedUser,
     isEditModalOpen,
     isResetPasswordModalOpen,
+    isDeleteModalOpen,
     processingAction,
     successMessage,
     fetchUsers,
@@ -141,7 +183,10 @@ export function useUserDashboard() {
     closeEditModal,
     openResetPasswordModal,
     closeResetPasswordModal,
+    openDeleteModal,
+    closeDeleteModal,
     updateUserCourses,
+    deleteUser,
     clearError,
   };
 }
