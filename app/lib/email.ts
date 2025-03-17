@@ -1,124 +1,89 @@
 // app/lib/email.ts
 import nodemailer from "nodemailer";
 
-// Configure transport
-const transporter = nodemailer.createTransport({
-  service: "gmail", // or your email service
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD, // Use app-specific password
-  },
-});
+interface Course {
+  mainTitle: string;
+}
 
-// Email template function
-export const generateWelcomeEmail = (
+export async function sendWelcomeEmail(
+  userId: string,
   email: string,
   password: string,
-  courses: { mainTitle: string }[]
-) => {
-  const coursesList = courses.map((course) => course.mainTitle).join(", ");
+  courses: Course[]
+) {
+  // Validate required parameters
+  if (!userId) throw new Error("userId is required for sending welcome email");
+  if (!email) throw new Error("email is required for sending welcome email");
 
-  return {
-    subject: "Welcome to Edzeeta - Your Course Registration is Complete",
+  // Configure email transport (adjust based on your email provider)
+  const transporter = nodemailer.createTransport({
+    // Configure your email provider details here
+    // Example for Gmail:
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD,
+    },
+  });
+
+  // Create a list of enrolled courses
+  const coursesList = courses
+    .map((course) => `- ${course.mainTitle}`)
+    .join("\n");
+
+  // Configure email content
+  const mailOptions = {
+    from: process.env.EMAIL_FROM || "noreply@yourcompany.com",
+    to: email,
+    subject: "Welcome to Our Learning Platform",
+    text: `
+Hello,
+
+Thank you for joining our learning platform! Here are your account details:
+
+Email: ${email}
+Password: ${password}
+
+You have been enrolled in the following courses:
+${coursesList}
+
+Please login at ${
+      process.env.NEXT_PUBLIC_APP_URL || "https://yourapp.com"
+    } to access your courses.
+
+Note: You may want to change your password after the first login for security.
+
+Best regards,
+Your Learning Platform Team
+    `,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { 
-              font-family: Arial, sans-serif;
-              line-height: 1.6;
-              margin: 0;
-              padding: 0;
-            }
-            .container {
-              max-width: 600px;
-              margin: 0 auto;
-              padding: 20px;
-            }
-            .header {
-              background-color: #004aad;
-              color: white;
-              padding: 20px;
-              text-align: center;
-            }
-            .content {
-              padding: 20px;
-              background-color: #f8f9fa;
-            }
-            .footer {
-              text-align: center;
-              padding: 20px;
-              color: #6c757d;
-              font-size: 14px;
-            }
-            .details {
-              background-color: white;
-              padding: 20px;
-              border-radius: 5px;
-              margin: 20px 0;
-            }
-            .detail-item {
-              margin: 10px 0;
-            }
-            .highlight {
-              color: #004aad;
-              font-weight: bold;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Welcome to Edzeeta</h1>
-            </div>
-            <div class="content">
-              <p>Thank you for choosing Edzeeta!</p>
-              <p>Your course enrollment is complete.</p>
-              
-              <div class="details">
-                <h2 style="color: #004aad;">Login Details</h2>
-                <div class="detail-item">
-                  <strong>Email:</strong> ${email}
-                </div>
-                <div class="detail-item">
-                  <strong>Password:</strong> ${password}
-                </div>
-                <div class="detail-item">
-                  <strong>Courses Registered:</strong> ${coursesList}
-                </div>
-              </div>
-              
-              <p>You can now access your courses through our LMS platform.</p>
-            </div>
-            <div class="footer">
-              <p>© ${new Date().getFullYear()} Edzeeta. All rights reserved.</p>
-            </div>
-          </div>
-        </body>
-      </html>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Welcome to Our Learning Platform!</h2>
+      <p>Thank you for joining our learning platform! Here are your account details:</p>
+      <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0;">
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Password:</strong> ${password}</p>
+      </div>
+      <p>You have been enrolled in the following courses:</p>
+      <ul>
+        ${courses.map((course) => `<li>${course.mainTitle}</li>`).join("")}
+      </ul>
+      <p>Please <a href="${
+        process.env.NEXT_PUBLIC_APP_URL || "https://yourapp.com"
+      }">login to your account</a> to access your courses.</p>
+      <p><em>Note: You may want to change your password after the first login for security.</em></p>
+      <p>Best regards,<br>Your Learning Platform Team</p>
+    </div>
     `,
   };
-};
 
-// Send email function
-export const sendWelcomeEmail = async (
-  email: string,
-  password: string,
-  courses: { mainTitle: string }[]
-) => {
-  const { subject, html } = generateWelcomeEmail(email, password, courses);
-
+  // Send the email
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject,
-      html,
-    });
-    return { success: true };
+    const info = await transporter.sendMail(mailOptions);
+    console.log("Welcome email sent:", info.messageId);
+    return info;
   } catch (error) {
-    console.error("Error sending email:", error);
-    return { success: false, error };
+    console.error("Error sending welcome email:", error);
+    throw error; // Re-throw to be handled by caller
   }
-};
+}

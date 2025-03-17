@@ -33,11 +33,21 @@ export function useAddUser() {
   const fetchCourses = async () => {
     try {
       const response = await fetch("/api/courses/list");
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch courses");
+      }
+
       const data = await response.json();
+
+      if (!data.courses) {
+        throw new Error("Invalid course data received");
+      }
+
       setAvailableCourses(data.courses);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
-      setError("Failed to fetch courses");
+      console.error("Error fetching courses:", err);
+      setError(err instanceof Error ? err.message : "Failed to fetch courses");
     }
   };
 
@@ -47,6 +57,9 @@ export function useAddUser() {
       ...prev,
       [name]: value,
     }));
+
+    // Clear any previous errors when user is typing
+    if (error) setError(null);
   };
 
   const handleCourseSelect = (courseId: string) => {
@@ -63,6 +76,9 @@ export function useAddUser() {
         };
       }
     });
+
+    // Clear any previous errors when selection changes
+    if (error) setError(null);
   };
 
   const clearAllFields = () => {
@@ -72,13 +88,55 @@ export function useAddUser() {
       courseIds: [],
     });
     setGeneratedPassword(""); // Clear the generated password as well
+    setError(null);
+    setSuccess(false);
+  };
+
+  const validateForm = (): boolean => {
+    // Validate email
+    if (!formData.email) {
+      setError("Email is required");
+      return false;
+    }
+
+    if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      setError("Please enter a valid email address");
+      return false;
+    }
+
+    // Validate password
+    if (!formData.password) {
+      setError("Password is required");
+      return false;
+    }
+
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return false;
+    }
+
+    // Validate course selection
+    if (formData.courseIds.length === 0) {
+      setError("Please select at least one course");
+      return false;
+    }
+
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+
+    // Reset states
     setError(null);
     setSuccess(false);
+
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const response = await fetch("/api/users/create", {
@@ -101,8 +159,11 @@ export function useAddUser() {
         password: "",
         courseIds: [],
       });
+      setGeneratedPassword("");
     } catch (err) {
+      console.error("Error creating user:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
+      setSuccess(false);
     } finally {
       setLoading(false);
     }
@@ -110,13 +171,32 @@ export function useAddUser() {
 
   const generatePassword = () => {
     const length = 12;
-    const charset =
-      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
-    let password = "";
-    for (let i = 0; i < length; i++) {
-      const randomIndex = Math.floor(Math.random() * charset.length);
-      password += charset[randomIndex];
+    const lowercase = "abcdefghijklmnopqrstuvwxyz";
+    const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const numbers = "0123456789";
+    const symbols = "!@#$%^&*()_-+=";
+
+    const allChars = lowercase + uppercase + numbers + symbols;
+
+    // Ensure at least one character from each type
+    let password =
+      lowercase.charAt(Math.floor(Math.random() * lowercase.length)) +
+      uppercase.charAt(Math.floor(Math.random() * uppercase.length)) +
+      numbers.charAt(Math.floor(Math.random() * numbers.length)) +
+      symbols.charAt(Math.floor(Math.random() * symbols.length));
+
+    // Add remaining random characters
+    for (let i = 4; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * allChars.length);
+      password += allChars[randomIndex];
     }
+
+    // Shuffle the password
+    password = password
+      .split("")
+      .sort(() => Math.random() - 0.5)
+      .join("");
+
     setGeneratedPassword(password);
   };
 
@@ -125,6 +205,9 @@ export function useAddUser() {
       ...prev,
       password: generatedPassword,
     }));
+
+    // Clear any previous errors
+    if (error) setError(null);
   };
 
   return {

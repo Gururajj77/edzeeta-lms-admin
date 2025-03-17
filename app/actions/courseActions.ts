@@ -34,8 +34,17 @@ export async function updateCourse(
         updatedAt: new Date().toISOString(),
       });
 
-    // Update modules and their sections
+    // Fetch all existing modules first for tracking
+    const existingModulesSnapshot = await db
+      .collection("courses")
+      .doc(courseId)
+      .collection("modules")
+      .get();
 
+    // Create a map of existing module IDs to track which ones to keep
+    const moduleIdsToKeep = new Set<string>();
+
+    // Update modules and their sections
     // eslint-disable-next-line @next/next/no-assign-module-variable
     for (const module of courseData.modules) {
       // Check if this is a new module (with a temporary ID)
@@ -47,6 +56,11 @@ export async function updateCourse(
             .doc(courseId)
             .collection("modules")
             .doc(module.id);
+
+      // If updating an existing module, add it to the set of IDs to keep
+      if (!isNewModule) {
+        moduleIdsToKeep.add(module.id);
+      }
 
       // Create or update module
       if (isNewModule) {
@@ -69,6 +83,12 @@ export async function updateCourse(
         });
       }
 
+      // Fetch existing sections for this module for tracking
+      const existingSectionsSnapshot = await moduleRef
+        .collection("sections")
+        .get();
+      const sectionIdsToKeep = new Set<string>();
+
       // Process all sections for this module
       for (const section of module.sections) {
         // Check if this is a new section (with a temporary ID)
@@ -76,6 +96,11 @@ export async function updateCourse(
         const sectionRef = isNewSection
           ? moduleRef.collection("sections").doc() // Generate a new Firestore ID
           : moduleRef.collection("sections").doc(section.id);
+
+        // If updating an existing section, add it to the set of IDs to keep
+        if (!isNewSection) {
+          sectionIdsToKeep.add(section.id);
+        }
 
         // Create or update section
         if (isNewSection) {
@@ -102,7 +127,21 @@ export async function updateCourse(
           });
         }
       }
+
+      // Delete sections that are no longer in the updated data
+      existingSectionsSnapshot.docs.forEach(async (doc) => {
+        if (!sectionIdsToKeep.has(doc.id)) {
+          await doc.ref.delete();
+        }
+      });
     }
+
+    // Delete modules that are no longer in the updated data
+    existingModulesSnapshot.docs.forEach(async (doc) => {
+      if (!moduleIdsToKeep.has(doc.id)) {
+        await doc.ref.delete();
+      }
+    });
 
     // Revalidate the dashboard page to reflect changes
     revalidatePath("/dashboard/update-course");
