@@ -4,10 +4,13 @@ import { app } from "@/app/firebase/firebase-admin-config";
 
 const db = getFirestore(app);
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { userId: string } }
+) {
   try {
     const { courseIds } = await request.json();
-    const userId = request.nextUrl.searchParams.get("userId");
+    const userId = params.userId; // Extract from path parameter
 
     if (!userId) {
       return NextResponse.json(

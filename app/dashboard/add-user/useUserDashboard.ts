@@ -86,14 +86,13 @@ export function useUserDashboard() {
     setSelectedUser(null);
   };
 
-  // Change this function in useUserDashboard.js
   const updateUserCourses = async (courseIds: string[]) => {
     if (!selectedUser) return;
 
     try {
       setProcessingAction(true);
       const response = await fetch(
-        `/api/users/${selectedUser.id}/update-courses?userId=${selectedUser.id}`,
+        `/api/users/${selectedUser.id}/update-courses`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
