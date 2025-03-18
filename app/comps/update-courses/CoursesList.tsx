@@ -111,7 +111,7 @@ const CoursesList: React.FC = () => {
 
   // Function to save course updates
   const saveCourseUpdates = async () => {
-    if (!editingCourse) return;
+    if (!editingCourse || saving) return;
 
     setSaving(true);
     try {

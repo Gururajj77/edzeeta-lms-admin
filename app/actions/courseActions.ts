@@ -64,6 +64,20 @@ export async function updateCourse(
 
       // Create or update module
       if (isNewModule) {
+        const existingModuleWithSameName = await db
+          .collection("courses")
+          .doc(courseId)
+          .collection("modules")
+          .where("moduleName", "==", module.moduleName)
+          .get();
+
+        if (!existingModuleWithSameName.empty) {
+          console.log(
+            `Module with name "${module.moduleName}" already exists, skipping creation`
+          );
+          continue; // Skip this module and move to the next one
+        }
+
         // Create new module
         await moduleRef.set({
           id: moduleRef.id,
