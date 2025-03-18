@@ -61,7 +61,7 @@ import {
   VideoSection,
   Video,
 } from "../../types/admin/course-creation";
-import { deleteCourse } from "@/app/actions/courseActions";
+import { updateCourse, deleteCourse } from "@/app/actions/courseActions";
 
 const CoursesList: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -115,16 +115,8 @@ const CoursesList: React.FC = () => {
 
     setSaving(true);
     try {
-      // Use the API route instead of the server action
-      const response = await fetch(`/api/courses/update/${editingCourse.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(editingCourse),
-      });
-
-      const result = await response.json();
+      // Use the server action directly
+      const result = await updateCourse(editingCourse.id, editingCourse);
 
       if (result.success) {
         // Update the courses list with the edited course
