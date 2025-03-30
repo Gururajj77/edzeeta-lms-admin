@@ -1,10 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @next/next/no-assign-module-variable */
 "use server";
 
 import { getFirestore } from "firebase-admin/firestore";
 import { app } from "@/app/firebase/firebase-admin-config";
-import { Course } from "@/app/types/admin/course-creation";
+import {
+  Course,
+  CourseModule,
+  VideoSection,
+} from "@/app/types/admin/course-creation";
 import { revalidatePath } from "next/cache";
 
 const db = getFirestore(app);
@@ -26,7 +29,7 @@ export async function updateCourse(
       return { success: false, message: "Course not found" };
     }
 
-    // Update course basic info first
+    // Update course basic info
     await db
       .collection("courses")
       .doc(courseId)
@@ -37,53 +40,8 @@ export async function updateCourse(
         updatedAt: new Date().toISOString(),
       });
 
-    // Fetch all existing modules for tracking
-    const existingModulesSnapshot = await db
-      .collection("courses")
-      .doc(courseId)
-      .collection("modules")
-      .get();
-
-    // Create maps for existing modules by ID and by name for quick lookups
-    const existingModulesById = new Map();
-    const existingModulesByName = new Map();
-
-    existingModulesSnapshot.docs.forEach((doc) => {
-      const data = doc.data();
-      existingModulesById.set(doc.id, data);
-      existingModulesByName.set(data.moduleName, {
-        id: doc.id,
-        ...data,
-      });
-    });
-
-    // Set to track which module IDs to keep
-    const moduleIdsToKeep = new Set<string>();
-
-    // Process all modules with proper Promise handling
-    const modulePromises = [];
-
-    for (const module of courseData.modules) {
-      // Add the processing of this module to our promises array
-      modulePromises.push(
-        processModule(courseId, module, existingModulesByName, moduleIdsToKeep)
-      );
-    }
-
-    // Wait for all module processing to complete
-    await Promise.all(modulePromises);
-
-    // Delete modules that are no longer in the updated data - with proper Promise handling
-    const deletePromises: any = [];
-
-    existingModulesSnapshot.docs.forEach((doc) => {
-      if (!moduleIdsToKeep.has(doc.id)) {
-        deletePromises.push(deleteModule(doc.ref));
-      }
-    });
-
-    // Wait for all deletions to complete
-    await Promise.all(deletePromises);
+    // Process modules and their sections
+    await processModulesAndSections(courseId, courseData.modules);
 
     // Revalidate the dashboard page to reflect changes
     revalidatePath("/dashboard/update-course");
@@ -98,25 +56,80 @@ export async function updateCourse(
   }
 }
 
-// Helper function to process a single module
+/**
+ * Process all modules and their sections for a course
+ */
+async function processModulesAndSections(
+  courseId: string,
+  modules: CourseModule[]
+): Promise<void> {
+  // Fetch all existing modules to track what should be kept
+  const existingModulesSnapshot = await db
+    .collection("courses")
+    .doc(courseId)
+    .collection("modules")
+    .get();
+
+  // Create maps for easy lookup of existing modules
+  const existingModulesById = new Map();
+  const existingModulesByName = new Map();
+
+  existingModulesSnapshot.docs.forEach((doc) => {
+    const data = doc.data();
+    existingModulesById.set(doc.id, data);
+    existingModulesByName.set(data.moduleName, {
+      id: doc.id,
+      ...data,
+    });
+  });
+
+  // Track modules to keep
+  const moduleIdsToKeep = new Set<string>();
+
+  // Process all modules in parallel
+  await Promise.all(
+    modules.map((module) =>
+      processModule(
+        courseId,
+        module,
+        existingModulesById,
+        existingModulesByName,
+        moduleIdsToKeep
+      )
+    )
+  );
+
+  // Delete modules that are no longer in the updated data
+  await Promise.all(
+    existingModulesSnapshot.docs
+      .filter((doc) => !moduleIdsToKeep.has(doc.id))
+      .map((doc) => deleteModule(doc.ref))
+  );
+}
+
+/**
+ * Process a single module and its sections
+ */
 async function processModule(
   courseId: string,
-  module: any,
+  module: CourseModule,
+  existingModulesById: Map<string, any>,
   existingModulesByName: Map<string, any>,
   moduleIdsToKeep: Set<string>
-) {
+): Promise<void> {
   try {
-    // Check if this is a new module (with a temporary ID)
-    const isNewModule = module.id.startsWith("module-");
     let moduleRef;
     let moduleId = module.id;
 
+    // Check if this is a temporary ID (new module from frontend)
+    const isNewModule = module.id.startsWith("module-");
+
     if (isNewModule) {
-      // Check if a module with the same name already exists
+      // For new modules, check if one with same name exists to prevent duplicates
       const existingModule = existingModulesByName.get(module.moduleName);
 
       if (existingModule) {
-        // Use existing module instead of creating a new one
+        // Use existing module instead of creating duplicate
         moduleRef = db
           .collection("courses")
           .doc(courseId)
@@ -124,14 +137,6 @@ async function processModule(
           .doc(existingModule.id);
 
         moduleId = existingModule.id;
-
-        // Update the existing module with same name
-        await moduleRef.update({
-          moduleName: module.moduleName,
-          description: module.description,
-          order: module.order,
-          updatedAt: new Date().toISOString(),
-        });
       } else {
         // Create a new module with a generated ID
         moduleRef = db
@@ -141,46 +146,72 @@ async function processModule(
           .doc();
 
         moduleId = moduleRef.id;
-
-        // Create new module
-        await moduleRef.set({
-          id: moduleId,
-          moduleName: module.moduleName,
-          description: module.description,
-          order: module.order,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
       }
     } else {
-      // This is an existing module - update it
-      moduleRef = db
-        .collection("courses")
-        .doc(courseId)
-        .collection("modules")
-        .doc(module.id);
+      // This is an existing module - check if it exists
+      const moduleExists = existingModulesById.has(module.id);
 
-      // Check if this module actually exists before updating
-      const moduleDoc = await moduleRef.get();
-
-      if (!moduleDoc.exists) {
+      if (!moduleExists) {
         console.error(
-          `Module with ID ${module.id} does not exist, skipping update`
+          `Module with ID ${module.id} does not exist, creating new`
         );
-        return; // Skip this module
-      }
 
-      // Update the existing module
+        // Check if a module with the same name exists to prevent duplicates
+        const existingModule = existingModulesByName.get(module.moduleName);
+
+        if (existingModule) {
+          moduleRef = db
+            .collection("courses")
+            .doc(courseId)
+            .collection("modules")
+            .doc(existingModule.id);
+
+          moduleId = existingModule.id;
+        } else {
+          // Create module with specified ID
+          moduleRef = db
+            .collection("courses")
+            .doc(courseId)
+            .collection("modules")
+            .doc(module.id);
+
+          moduleId = module.id;
+        }
+      } else {
+        // Use the existing module
+        moduleRef = db
+          .collection("courses")
+          .doc(courseId)
+          .collection("modules")
+          .doc(module.id);
+      }
+    }
+
+    // Add this module's ID to the set of IDs to keep
+    moduleIdsToKeep.add(moduleId);
+
+    // Check if document exists before updating
+    const moduleDoc = await moduleRef.get();
+
+    if (moduleDoc.exists) {
+      // Update existing module
       await moduleRef.update({
         moduleName: module.moduleName,
         description: module.description,
         order: module.order,
         updatedAt: new Date().toISOString(),
       });
+    } else {
+      // Create new module
+      await moduleRef.set({
+        id: moduleId,
+        moduleName: module.moduleName,
+        description: module.description,
+        order: module.order,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
     }
-
-    // Add this module's ID to the set of IDs to keep
-    moduleIdsToKeep.add(moduleId);
 
     // Process sections within this module
     await processSections(moduleRef, module.sections);
@@ -189,80 +220,82 @@ async function processModule(
       `Error processing module ${module.moduleName || module.id}:`,
       error
     );
-    throw error; // Propagate the error up
+    throw error;
   }
 }
 
-// Helper function to process sections within a module
+/**
+ * Process sections within a module
+ */
 async function processSections(
-  moduleRef: FirebaseFirestore.DocumentReference<
-    FirebaseFirestore.DocumentData,
-    FirebaseFirestore.DocumentData
-  >,
-  sections: any
-) {
-  try {
-    // Fetch existing sections for tracking
-    const existingSectionsSnapshot = await moduleRef
-      .collection("sections")
-      .get();
-    const sectionIdsToKeep = new Set<string>();
+  moduleRef: FirebaseFirestore.DocumentReference,
+  sections: VideoSection[]
+): Promise<void> {
+  // Fetch existing sections for tracking
+  const existingSectionsSnapshot = await moduleRef.collection("sections").get();
 
-    // Process sections with proper Promise handling
-    const sectionPromises = [];
+  // Create a map for quick lookup
+  const existingSectionsById = new Map();
+  existingSectionsSnapshot.docs.forEach((doc) => {
+    existingSectionsById.set(doc.id, doc.data());
+  });
 
-    for (const section of sections) {
-      sectionPromises.push(
-        processSection(moduleRef, section, sectionIdsToKeep)
-      );
-    }
+  const sectionIdsToKeep = new Set<string>();
 
-    // Wait for all section processing to complete
-    await Promise.all(sectionPromises);
+  // Process all sections in parallel
+  await Promise.all(
+    sections.map((section) =>
+      processSection(moduleRef, section, existingSectionsById, sectionIdsToKeep)
+    )
+  );
 
-    // Delete sections that are no longer in the updated data - with proper Promise handling
-    const deletePromises: any = [];
-
-    existingSectionsSnapshot.docs.forEach((doc) => {
-      if (!sectionIdsToKeep.has(doc.id)) {
-        deletePromises.push(doc.ref.delete());
-      }
-    });
-
-    // Wait for all section deletions to complete
-    await Promise.all(deletePromises);
-  } catch (error) {
-    console.error("Error processing sections:", error);
-    throw error; // Propagate the error up
-  }
+  // Delete sections that are no longer in the updated data
+  await Promise.all(
+    existingSectionsSnapshot.docs
+      .filter((doc) => !sectionIdsToKeep.has(doc.id))
+      .map((doc) => doc.ref.delete())
+  );
 }
 
-// Helper function to process a single section
+/**
+ * Process a single section
+ */
 async function processSection(
-  moduleRef: any,
-  section: any,
+  moduleRef: FirebaseFirestore.DocumentReference,
+  section: VideoSection,
+  existingSectionsById: Map<string, any>,
   sectionIdsToKeep: Set<string>
-) {
+): Promise<void> {
   try {
     // Check if this is a new section (with a temporary ID)
     const isNewSection = section.id.startsWith("section-");
-    const sectionRef = isNewSection
-      ? moduleRef.collection("sections").doc() // Generate a new Firestore ID
-      : moduleRef.collection("sections").doc(section.id);
+    let sectionId = section.id;
+    let sectionRef;
 
-    // If this is an existing section, add its ID to the set of IDs to keep
-    if (!isNewSection) {
-      sectionIdsToKeep.add(section.id);
+    if (isNewSection) {
+      // This is a new section, create with generated ID
+      sectionRef = moduleRef.collection("sections").doc();
+      sectionId = sectionRef.id;
+    } else {
+      // Use the existing section ID
+      sectionRef = moduleRef.collection("sections").doc(section.id);
+      sectionId = section.id;
 
-      // Verify the section exists before updating
-      const sectionDoc = await sectionRef.get();
-      if (!sectionDoc.exists) {
-        console.error(
-          `Section with ID ${section.id} does not exist, skipping update`
+      // Check if this section actually exists
+      if (!existingSectionsById.has(section.id)) {
+        console.log(
+          `Section with ID ${section.id} does not exist, will create new`
         );
-        return; // Skip this section
       }
+    }
 
+    // Add this section's ID to the set of IDs to keep
+    sectionIdsToKeep.add(sectionId);
+
+    // Check if document exists before updating
+    const sectionDoc = await sectionRef.get();
+
+    if (sectionDoc.exists) {
       // Update existing section
       await sectionRef.update({
         title: section.title,
@@ -275,7 +308,7 @@ async function processSection(
     } else {
       // Create new section
       await sectionRef.set({
-        id: sectionRef.id,
+        id: sectionId,
         title: section.title,
         description: section.description,
         order: section.order,
@@ -290,9 +323,13 @@ async function processSection(
       `Error processing section ${section.title || section.id}:`,
       error
     );
-    throw error; // Propagate the error up
+    throw error;
   }
 }
+
+/**
+ * Delete a module and all its sections
+ */
 
 // Helper function to delete a module and all its sections
 async function deleteModule(
