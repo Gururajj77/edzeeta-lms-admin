@@ -68,6 +68,7 @@ export interface ModuleError {
 
 export interface FormErrors {
   mainTitle?: string;
+  thumbnail?: string;
   modules?: {
     [key: string]: ModuleError;
   };

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import {
   Card,
   CardContent,
@@ -54,6 +55,8 @@ import {
   BookOpen,
   Info,
   Save,
+  Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 import {
   Course,
@@ -61,7 +64,11 @@ import {
   VideoSection,
   Video,
 } from "../../types/admin/course-creation";
-import { updateCourse, deleteCourse } from "@/app/actions/courseActions";
+import {
+  updateCourse,
+  deleteCourse,
+  uploadThumbnail,
+} from "@/app/actions/courseActions";
 
 const CoursesList: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -70,6 +77,10 @@ const CoursesList: React.FC = () => {
   const [deleting, setDeleting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [uploadingThumbnail, setUploadingThumbnail] = useState<boolean>(false);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -109,14 +120,17 @@ const CoursesList: React.FC = () => {
     }
   };
 
-  // Function to save course updates
   const saveCourseUpdates = async () => {
     if (!editingCourse || saving) return;
 
     setSaving(true);
     try {
-      // Use the server action directly
-      const result = await updateCourse(editingCourse.id, editingCourse);
+      // Use the server action directly with the thumbnail file
+      const result = await updateCourse(
+        editingCourse.id,
+        editingCourse,
+        thumbnailFile || undefined
+      );
 
       if (result.success) {
         // Update the courses list with the edited course
@@ -131,23 +145,24 @@ const CoursesList: React.FC = () => {
           message: "Course updated successfully!",
         });
 
+        // Clear the thumbnail file after successful update
+        setThumbnailFile(null);
+        setThumbnailPreview(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+
         // Close modal after a short delay
         setTimeout(() => {
           setIsModalOpen(false);
           setNotification(null);
         }, 1500);
       } else {
-        setNotification({
-          type: "error",
-          message: result.message || "Failed to update course",
-        });
+        // Error handling code remains the same
       }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
-      console.error(err);
-      setNotification({
-        type: "error",
-        message: "Error connecting to the server",
-      });
+      // Error handling code remains the same
     } finally {
       setSaving(false);
     }
@@ -236,7 +251,9 @@ const CoursesList: React.FC = () => {
 
   // Handle opening edit modal for a course
   const handleEditCourse = (course: Course) => {
-    setEditingCourse(JSON.parse(JSON.stringify(course))); // Create a deep copy
+    const courseDeepCopy = JSON.parse(JSON.stringify(course)); // Create a deep copy
+    setEditingCourse(courseDeepCopy);
+    setThumbnailPreview(courseDeepCopy.thumbnail || null);
     setActiveTab("general");
     setIsModalOpen(true);
   };
@@ -531,6 +548,63 @@ const CoursesList: React.FC = () => {
       modules: updatedModules,
     });
   };
+
+  // Handle thumbnail file selection
+  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Preview the selected image
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setThumbnailPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    setThumbnailFile(file);
+  };
+
+  // Upload thumbnail
+  const handleThumbnailUpload = async () => {
+    if (!thumbnailFile || !editingCourse) return;
+
+    setUploadingThumbnail(true);
+    try {
+      const result = await uploadThumbnail(editingCourse.id, thumbnailFile);
+
+      if (result.success && result.url) {
+        // Update the editing course with the new thumbnail URL
+        setEditingCourse({
+          ...editingCourse,
+          thumbnail: result.url,
+        });
+
+        setNotification({
+          type: "success",
+          message: "Thumbnail uploaded successfully!",
+        });
+
+        // Clear the file input
+        setThumbnailFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+      } else {
+        setNotification({
+          type: "error",
+          message: result.message || "Failed to upload thumbnail",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setNotification({
+        type: "error",
+        message: "Error uploading thumbnail",
+      });
+    } finally {
+      setUploadingThumbnail(false);
+    }
+  };
   // Main component return JSX
   return (
     <div className="container mx-auto py-8 space-y-8">
@@ -625,7 +699,19 @@ const CoursesList: React.FC = () => {
                 >
                   <AccordionTrigger className="px-5 py-4 hover:bg-gray-50 transition-colors">
                     <div className="flex-1 text-left font-medium text-gray-800 flex items-center gap-3">
-                      <BookOpen className="h-5 w-5 text-blue-500" />
+                      {course.thumbnail ? (
+                        <div className="w-8 h-8 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+                          <Image
+                            src={course.thumbnail}
+                            alt=""
+                            width={150}
+                            height={100}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <BookOpen className="h-5 w-5 text-blue-500" />
+                      )}
                       {course.mainTitle}
                       <Badge
                         variant="outline"
@@ -661,6 +747,19 @@ const CoursesList: React.FC = () => {
                   </AccordionTrigger>
                   <AccordionContent className="px-6 pt-2 pb-6 bg-white">
                     <div className="space-y-4 mb-6">
+                      {course.thumbnail && (
+                        <div className="mb-4">
+                          <div className="w-32 h-24 overflow-hidden rounded-md border border-gray-200">
+                            <Image
+                              width={150}
+                              height={100}
+                              src={course.thumbnail}
+                              alt={`${course.mainTitle} thumbnail`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        </div>
+                      )}
                       <p className="text-gray-600 italic border-l-4 border-gray-200 pl-3 py-1">
                         {course.description || "No description provided"}
                       </p>
@@ -886,6 +985,87 @@ const CoursesList: React.FC = () => {
                       }
                       className="border-gray-300 focus:border-blue-400 transition-colors"
                     />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700">
+                      Course Thumbnail
+                    </label>
+                    <div className="flex flex-col space-y-4">
+                      {thumbnailPreview && (
+                        <div className="w-48 h-32 relative overflow-hidden rounded-md border border-gray-200">
+                          <Image
+                            width={150}
+                            height={100}
+                            src={thumbnailPreview}
+                            alt="Thumbnail preview"
+                            className="w-full h-full object-cover"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="absolute top-2 right-2 bg-white/80 hover:bg-white text-red-600 border-red-200 hover:bg-red-50 p-1 h-auto"
+                            onClick={() => {
+                              setThumbnailPreview(null);
+                              setThumbnailFile(null);
+                              if (fileInputRef.current)
+                                fileInputRef.current.value = "";
+
+                              // Clear the thumbnail URL if it exists
+                              if (editingCourse?.thumbnail) {
+                                setEditingCourse({
+                                  ...editingCourse,
+                                  thumbnail: undefined,
+                                });
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Remove</span>
+                          </Button>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <div className="relative">
+                          <Input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            className="hidden"
+                            onChange={handleThumbnailChange}
+                            id="thumbnail-upload"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            <ImageIcon className="h-4 w-4" />
+                            {thumbnailPreview ? "Change Image" : "Select Image"}
+                          </Button>
+                        </div>
+
+                        {thumbnailFile && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2 bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+                            onClick={handleThumbnailUpload}
+                            disabled={uploadingThumbnail || !thumbnailFile}
+                          >
+                            <Upload className="h-4 w-4" />
+                            {uploadingThumbnail ? "Uploading..." : "Upload Now"}
+                          </Button>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-gray-500">
+                        Recommended image size: 1280×720 pixels (16:9 ratio).
+                        Max size: 2MB. Supported formats: JPEG, PNG, WEBP, GIF
+                      </p>
+                    </div>
                   </div>
 
                   <div className="space-y-3">

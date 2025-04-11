@@ -2,6 +2,7 @@
 "use server";
 
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { app } from "@/app/firebase/firebase-admin-config";
 import {
   Course,
@@ -11,6 +12,7 @@ import {
 import { revalidatePath } from "next/cache";
 
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 type UpdateCourseResult = {
   success: boolean;
@@ -20,13 +22,28 @@ type UpdateCourseResult = {
 
 export async function updateCourse(
   courseId: string,
-  courseData: Course
+  courseData: Course,
+  thumbnailFile?: File
 ): Promise<UpdateCourseResult> {
   try {
     // Verify that the course exists
     const courseDoc = await db.collection("courses").doc(courseId).get();
     if (!courseDoc.exists) {
       return { success: false, message: "Course not found" };
+    }
+
+    // Handle thumbnail upload if provided
+    let thumbnailUrl = courseData.thumbnail;
+
+    if (thumbnailFile) {
+      const uploadResult = await uploadThumbnail(courseId, thumbnailFile);
+      if (!uploadResult.success) {
+        return {
+          success: false,
+          message: `Failed to upload thumbnail: ${uploadResult.message}`,
+        };
+      }
+      thumbnailUrl = uploadResult.url;
     }
 
     // Update course basic info
@@ -38,6 +55,7 @@ export async function updateCourse(
         description: courseData.description,
         status: courseData.status || "draft",
         updatedAt: new Date().toISOString(),
+        thumbnail: thumbnailUrl || null,
       });
 
     // Process modules and their sections
@@ -46,7 +64,11 @@ export async function updateCourse(
     // Revalidate the dashboard page to reflect changes
     revalidatePath("/dashboard/update-course");
 
-    return { success: true, message: "Course updated successfully" };
+    return {
+      success: true,
+      message: "Course updated successfully",
+      data: { thumbnailUrl },
+    };
   } catch (error: any) {
     console.error("Error updating course:", error);
     return {
@@ -403,5 +425,82 @@ export async function deleteCourse(
   } catch (error) {
     console.error("Error deleting course:", error);
     return { success: false, message: "Failed to delete course" };
+  }
+}
+
+export async function uploadThumbnail(
+  courseId: string,
+  file: File
+): Promise<{ success: boolean; url?: string; message: string }> {
+  try {
+    if (!file) {
+      return { success: false, message: "No file provided" };
+    }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      return {
+        success: false,
+        message:
+          "Invalid file type. Please upload a JPEG, PNG, WEBP or GIF image.",
+      };
+    }
+
+    // Maximum file size (2MB)
+    const maxSize = 2 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return {
+        success: false,
+        message: "File is too large. Maximum size is 2MB.",
+      };
+    }
+
+    // Create a unique filename with timestamp
+    const timestamp = Date.now();
+    const fileExtension = file.name.split(".").pop();
+    const fileName = `thumbnails/${courseId}/${timestamp}.${fileExtension}`;
+
+    // Get bucket name from environment variable and specify it explicitly
+    const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+
+    // Make sure to remove "gs://" prefix if it exists
+    const cleanBucketName = bucketName?.startsWith("gs://")
+      ? bucketName.replace("gs://", "")
+      : bucketName;
+
+    // Get a reference to the file in Firebase Storage by explicitly specifying the bucket
+    const bucket = storage.bucket(cleanBucketName);
+    const fileRef = bucket.file(fileName);
+
+    // Get file buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Upload the file
+    await fileRef.save(buffer, {
+      metadata: {
+        contentType: file.type,
+      },
+    });
+
+    // Make the file publicly accessible
+    await fileRef.makePublic();
+
+    // Get the public URL
+    const url = `https://storage.googleapis.com/${cleanBucketName}/${fileName}`;
+
+    return {
+      success: true,
+      url: url,
+      message: "Thumbnail uploaded successfully",
+    };
+  } catch (error: any) {
+    console.error("Error uploading thumbnail:", error);
+    return {
+      success: false,
+      message: `Failed to upload thumbnail: ${
+        error.message || "Unknown error"
+      }`,
+    };
   }
 }
