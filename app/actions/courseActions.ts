@@ -447,7 +447,7 @@ export async function uploadThumbnail(
     }
 
     // Maximum file size (2MB)
-    const maxSize = 2 * 1024 * 1024;
+    const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       return {
         success: false,

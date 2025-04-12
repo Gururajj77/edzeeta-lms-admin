@@ -997,6 +997,7 @@ const CoursesList: React.FC = () => {
                           <Image
                             width={150}
                             height={100}
+                            quality={85}
                             src={thumbnailPreview}
                             alt="Thumbnail preview"
                             className="w-full h-full object-cover"
@@ -1062,8 +1063,9 @@ const CoursesList: React.FC = () => {
                       </div>
 
                       <p className="text-xs text-gray-500">
-                        Recommended image size: 1280×720 pixels (16:9 ratio).
-                        Max size: 2MB. Supported formats: JPEG, PNG, WEBP, GIF
+                        Recommended image size: 1920×1080 pixels or higher.
+                        pixels (16:9 ratio). Max size: 10MB. Supported formats:
+                        JPEG, PNG, WEBP, GIF
                       </p>
                     </div>
                   </div>
