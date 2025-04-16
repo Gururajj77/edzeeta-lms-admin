@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Pencil, Trash2, Search } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, Search, Users } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -31,13 +31,18 @@ import { ProjectCategory, Project } from "@/app/types/projects/types";
 interface ProjectsListProps {
   onEdit: (projectId: string) => void;
   onNew: () => void;
+  onAssign: (projectId: string) => void;
 }
 
 interface ProjectWithCategory extends Project {
   categoryTitle: string;
 }
 
-export default function ProjectsList({ onEdit, onNew }: ProjectsListProps) {
+export default function ProjectsList({
+  onEdit,
+  onNew,
+  onAssign,
+}: ProjectsListProps) {
   const [projects, setProjects] = useState<ProjectWithCategory[]>([]);
   const [categories, setCategories] = useState<ProjectCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -280,6 +285,14 @@ export default function ProjectsList({ onEdit, onNew }: ProjectsListProps) {
                         disabled={deleting === project.id}
                       >
                         <Trash2 size={16} />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => onAssign(project.id)}
+                        title="Assign to users"
+                      >
+                        <Users size={16} />
                       </Button>
                     </div>
                   </TableCell>

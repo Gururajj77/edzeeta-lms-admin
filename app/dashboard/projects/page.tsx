@@ -15,6 +15,7 @@ import CategoriesList from "@/app/comps/projects/CategoriesList";
 import CategoryForm from "@/app/comps/projects/CategoryForm";
 import ProjectsList from "@/app/comps/projects/ProjectsList";
 import ProjectForm from "@/app/comps/projects/ProjectForm";
+import ProjectAssignment from "@/app/comps/projects/ProjectAssignment";
 
 export default function ProjectsPage() {
   // State for tracking which item is being edited
@@ -22,6 +23,9 @@ export default function ProjectsPage() {
     null
   );
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null
+  );
 
   // States for active tab
   const [activeTab, setActiveTab] = useState("categories-list");
@@ -50,6 +54,12 @@ export default function ProjectsPage() {
     setActiveTab("project-form");
   };
 
+  // Function to handle assigning a project
+  const handleAssignProject = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    setActiveTab("project-assignment");
+  };
+
   // Function to handle form submission completion
   const handleFormComplete = () => {
     // Reset the editing state
@@ -60,6 +70,8 @@ export default function ProjectsPage() {
     if (activeTab === "category-form") {
       setActiveTab("categories-list");
     } else if (activeTab === "project-form") {
+      setActiveTab("projects-list");
+    } else if (activeTab === "project-assignment") {
       setActiveTab("projects-list");
     }
   };
@@ -73,7 +85,7 @@ export default function ProjectsPage() {
         onValueChange={setActiveTab}
         className="space-y-4"
       >
-        <TabsList className="grid grid-cols-4 w-full">
+        <TabsList className="grid grid-cols-5 w-full">
           <TabsTrigger value="categories-list">Categories</TabsTrigger>
           <TabsTrigger value="category-form">
             {editingCategoryId ? "Edit Category" : "New Category"}
@@ -82,6 +94,7 @@ export default function ProjectsPage() {
           <TabsTrigger value="project-form">
             {editingProjectId ? "Edit Project" : "New Project"}
           </TabsTrigger>
+          <TabsTrigger value="project-assignment">Assign Projects</TabsTrigger>
         </TabsList>
 
         <TabsContent value="categories-list">
@@ -134,6 +147,7 @@ export default function ProjectsPage() {
               <ProjectsList
                 onEdit={handleEditProject}
                 onNew={handleNewProject}
+                onAssign={handleAssignProject}
               />
             </CardContent>
           </Card>
@@ -154,6 +168,23 @@ export default function ProjectsPage() {
             <CardContent>
               <ProjectForm
                 projectId={editingProjectId}
+                onComplete={handleFormComplete}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="project-assignment">
+          <Card>
+            <CardHeader>
+              <CardTitle>Assign Projects to Users</CardTitle>
+              <CardDescription>
+                Manage which users have access to specific projects
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProjectAssignment
+                selectedProjectId={selectedProjectId}
                 onComplete={handleFormComplete}
               />
             </CardContent>
