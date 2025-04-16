@@ -27,6 +27,12 @@ const navigation = [
     icon: BookPlus,
     description: "update and organize courses",
   },
+  {
+    name: "Projects",
+    href: "/dashboard/projects",
+    icon: BookPlus,
+    description: "maintain projects",
+  },
 ];
 
 export function DashboardNav() {
