@@ -16,6 +16,7 @@ import CategoryForm from "@/app/comps/projects/CategoryForm";
 import ProjectsList from "@/app/comps/projects/ProjectsList";
 import ProjectForm from "@/app/comps/projects/ProjectForm";
 import ProjectAssignment from "@/app/comps/projects/ProjectAssignment";
+import SubmissionsManagement from "@/app/comps/projects/SubmissionsManagement";
 
 export default function ProjectsPage() {
   // State for tracking which item is being edited
@@ -29,6 +30,8 @@ export default function ProjectsPage() {
 
   // States for active tab
   const [activeTab, setActiveTab] = useState("categories-list");
+  const [viewingSubmissionsForProject, setViewingSubmissionsForProject] =
+    useState<string | null>(null);
 
   // Function to handle editing a category
   const handleEditCategory = (categoryId: string) => {
@@ -60,11 +63,17 @@ export default function ProjectsPage() {
     setActiveTab("project-assignment");
   };
 
+  const handleViewSubmissions = (projectId: string) => {
+    setViewingSubmissionsForProject(projectId);
+    setActiveTab("submissions-management");
+  };
+
   // Function to handle form submission completion
   const handleFormComplete = () => {
     // Reset the editing state
     setEditingCategoryId(null);
     setEditingProjectId(null);
+    setViewingSubmissionsForProject(null);
 
     // Return to the list view
     if (activeTab === "category-form") {
@@ -85,7 +94,7 @@ export default function ProjectsPage() {
         onValueChange={setActiveTab}
         className="space-y-4"
       >
-        <TabsList className="grid grid-cols-5 w-full">
+        <TabsList className="grid grid-cols-6 w-full">
           <TabsTrigger value="categories-list">Categories</TabsTrigger>
           <TabsTrigger value="category-form">
             {editingCategoryId ? "Edit Category" : "New Category"}
@@ -95,6 +104,7 @@ export default function ProjectsPage() {
             {editingProjectId ? "Edit Project" : "New Project"}
           </TabsTrigger>
           <TabsTrigger value="project-assignment">Assign Projects</TabsTrigger>
+          <TabsTrigger value="submissions-management">Submissions</TabsTrigger>
         </TabsList>
 
         <TabsContent value="categories-list">
@@ -148,6 +158,7 @@ export default function ProjectsPage() {
                 onEdit={handleEditProject}
                 onNew={handleNewProject}
                 onAssign={handleAssignProject}
+                onViewSubmissions={handleViewSubmissions}
               />
             </CardContent>
           </Card>
@@ -185,6 +196,22 @@ export default function ProjectsPage() {
             <CardContent>
               <ProjectAssignment
                 selectedProjectId={selectedProjectId}
+                onComplete={handleFormComplete}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="submissions-management">
+          <Card>
+            <CardHeader>
+              <CardTitle>Project Submissions</CardTitle>
+              <CardDescription>
+                Review and manage student submissions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SubmissionsManagement
+                projectId={viewingSubmissionsForProject}
                 onComplete={handleFormComplete}
               />
             </CardContent>

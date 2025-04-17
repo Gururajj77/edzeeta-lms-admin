@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Pencil, Trash2, Search, Users } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, Users, FileText } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -26,12 +26,13 @@ import {
   doc,
 } from "firebase/firestore";
 import { db } from "@/app/firebase/firebase-config";
-import { ProjectCategory, Project } from "@/app/types/projects/types";
+import { Project, ProjectCategory } from "@/app/types/projects/types";
 
 interface ProjectsListProps {
   onEdit: (projectId: string) => void;
   onNew: () => void;
   onAssign: (projectId: string) => void;
+  onViewSubmissions: (projectId: string) => void;
 }
 
 interface ProjectWithCategory extends Project {
@@ -42,6 +43,7 @@ export default function ProjectsList({
   onEdit,
   onNew,
   onAssign,
+  onViewSubmissions,
 }: ProjectsListProps) {
   const [projects, setProjects] = useState<ProjectWithCategory[]>([]);
   const [categories, setCategories] = useState<ProjectCategory[]>([]);
@@ -139,7 +141,7 @@ export default function ProjectsList({
   const handleDelete = async (projectId: string) => {
     if (
       !confirm(
-        "Are you sure you want to delete this project? This action cannot be undone."
+        "Are you sure you want to delete this project? This will remove it from all students who have it assigned."
       )
     ) {
       return;
@@ -185,10 +187,9 @@ export default function ProjectsList({
       <div className="flex items-center justify-between mb-4 gap-4 flex-col sm:flex-row">
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
             <Input
               placeholder="Search projects..."
-              className="pl-8 w-full sm:w-[300px]"
+              className="w-full sm:w-[300px]"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -257,7 +258,7 @@ export default function ProjectsList({
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead className="w-[180px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -269,13 +270,30 @@ export default function ProjectsList({
                     {project.description}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => onEdit(project.id)}
+                        title="Edit project"
                       >
                         <Pencil size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onAssign(project.id)}
+                        title="Assign to users"
+                      >
+                        <Users size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onViewSubmissions(project.id)}
+                        title="View submissions"
+                      >
+                        <FileText size={16} />
                       </Button>
                       <Button
                         variant="ghost"
@@ -283,16 +301,9 @@ export default function ProjectsList({
                         className="text-red-500"
                         onClick={() => handleDelete(project.id)}
                         disabled={deleting === project.id}
+                        title="Delete project"
                       >
                         <Trash2 size={16} />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => onAssign(project.id)}
-                        title="Assign to users"
-                      >
-                        <Users size={16} />
                       </Button>
                     </div>
                   </TableCell>
