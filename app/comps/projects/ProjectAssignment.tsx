@@ -1,15 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -18,20 +12,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Check, Users } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Search,
+  Check,
+  Users,
+  X,
+  Plus,
+  ChevronUp,
+  ChevronDown,
+  BookOpen,
+} from "lucide-react";
 import {
   collection,
   getDocs,
   query,
   where,
-  addDoc,
-  deleteDoc,
+  writeBatch,
+  doc as firebaseDoc,
 } from "firebase/firestore";
 import { db } from "@/app/firebase/firebase-config";
-import { Project, UserProject } from "@/app/types/projects/types";
+import {
+  Project,
+  ProjectCategory,
+  UserProject,
+} from "@/app/types/projects/types";
 
-interface ProjectAssignmentProps {
-  selectedProjectId: string | null;
+interface BulkProjectAssignmentProps {
   onComplete: () => void;
 }
 
@@ -41,58 +48,110 @@ interface User {
   courseIds: string[];
 }
 
-export default function ProjectAssignment({
-  selectedProjectId,
+interface Course {
+  id: string;
+  mainTitle: string;
+}
+
+interface ProjectWithCategory extends Project {
+  categoryTitle: string;
+}
+
+interface UserWithCourses extends User {
+  courses: Course[];
+}
+
+export default function BulkProjectAssignment({
   onComplete,
-}: ProjectAssignmentProps) {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+}: BulkProjectAssignmentProps) {
+  const [projects, setProjects] = useState<ProjectWithCategory[]>([]);
+  const [categories, setCategories] = useState<ProjectCategory[]>([]);
+  const [users, setUsers] = useState<UserWithCourses[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<UserWithCourses[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
-  const [currentProjectId, setCurrentProjectId] = useState<string>(
-    selectedProjectId || ""
+  const [selectedProjects, setSelectedProjects] = useState<Set<string>>(
+    new Set()
   );
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
-  const [existingAssignments, setExistingAssignments] = useState<Set<string>>(
-    new Set()
-  );
+  const [existingAssignments, setExistingAssignments] = useState<
+    Map<string, Set<string>>
+  >(new Map());
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [sortedUsers, setSortedUsers] = useState<UserWithCourses[]>([]);
 
-  // Fetch projects
+  // Fetch courses first
   useEffect(() => {
-    const fetchProjects = async () => {
+    const fetchCourses = async () => {
       try {
-        const projectsRef = collection(db, "projects");
-        const snapshot = await getDocs(projectsRef);
+        const coursesRef = collection(db, "courses");
+        const coursesSnapshot = await getDocs(coursesRef);
 
-        const fetchedProjects: Project[] = [];
-        snapshot.forEach((doc) => {
-          fetchedProjects.push({
+        const fetchedCourses: Course[] = [];
+        coursesSnapshot.forEach((doc) => {
+          fetchedCourses.push({
             id: doc.id,
-            ...doc.data(),
-          } as Project);
+            mainTitle: doc.data().mainTitle,
+          } as Course);
         });
 
-        setProjects(fetchedProjects);
-
-        // Set the first project as selected if none is provided
-        if (
-          !selectedProjectId &&
-          fetchedProjects.length > 0 &&
-          !currentProjectId
-        ) {
-          setCurrentProjectId(fetchedProjects[0].id);
-        }
+        setCourses(fetchedCourses);
       } catch (err) {
-        console.error("Error fetching projects:", err);
+        console.error("Error fetching courses:", err);
       }
     };
 
-    fetchProjects();
-  }, [selectedProjectId, currentProjectId]);
+    fetchCourses();
+  }, []);
 
-  // Fetch users
+  // Fetch categories and projects
+  useEffect(() => {
+    const fetchCategoriesAndProjects = async () => {
+      try {
+        // Fetch categories first
+        const categoriesRef = collection(db, "projectCategories");
+        const categoriesSnapshot = await getDocs(categoriesRef);
+
+        const fetchedCategories: ProjectCategory[] = [];
+        categoriesSnapshot.forEach((doc) => {
+          fetchedCategories.push({
+            id: doc.id,
+            ...doc.data(),
+          } as ProjectCategory);
+        });
+
+        setCategories(fetchedCategories);
+
+        // Fetch projects
+        const projectsRef = collection(db, "projects");
+        const projectsSnapshot = await getDocs(projectsRef);
+
+        const fetchedProjects: ProjectWithCategory[] = [];
+        projectsSnapshot.forEach((doc) => {
+          const projectData = doc.data() as Omit<Project, "id">;
+          const category = fetchedCategories.find(
+            (cat) => cat.id === projectData.categoryId
+          );
+
+          fetchedProjects.push({
+            id: doc.id,
+            ...projectData,
+            categoryTitle: category?.title || "Unknown Category",
+          } as ProjectWithCategory);
+        });
+
+        setProjects(fetchedProjects);
+      } catch (err) {
+        console.error("Error fetching projects and categories:", err);
+      }
+    };
+
+    fetchCategoriesAndProjects();
+  }, []);
+
+  // Fetch users and map them with course names
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -109,8 +168,23 @@ export default function ProjectAssignment({
           } as User);
         });
 
-        setUsers(fetchedUsers);
-        setFilteredUsers(fetchedUsers);
+        // Map users with their course information
+        const usersWithCourses: UserWithCourses[] = fetchedUsers.map((user) => {
+          const userCourses =
+            user.courseIds
+              ?.map((courseId) =>
+                courses.find((course) => course.id === courseId)
+              )
+              .filter((course): course is Course => course !== undefined) || [];
+
+          return {
+            ...user,
+            courses: userCourses,
+          };
+        });
+
+        setUsers(usersWithCourses);
+        setFilteredUsers(usersWithCourses);
       } catch (err) {
         console.error("Error fetching users:", err);
       } finally {
@@ -118,62 +192,87 @@ export default function ProjectAssignment({
       }
     };
 
-    fetchUsers();
-  }, []);
+    // Only fetch users if courses are already loaded
+    if (courses.length > 0) {
+      fetchUsers();
+    }
+  }, [courses]);
 
-  // Fetch existing assignments when project changes
+  // Fetch existing assignments for selected projects
   useEffect(() => {
     const fetchExistingAssignments = async () => {
-      if (!currentProjectId) return;
+      if (selectedProjects.size === 0) {
+        setExistingAssignments(new Map());
+        return;
+      }
 
       try {
-        setLoading(true);
-
         const userProjectsRef = collection(db, "userProjects");
         const assignmentQuery = query(
           userProjectsRef,
-          where("projectId", "==", currentProjectId)
+          where("projectId", "in", Array.from(selectedProjects))
         );
         const snapshot = await getDocs(assignmentQuery);
 
-        const assignments = new Set<string>();
+        const assignmentMap = new Map<string, Set<string>>();
+
         snapshot.forEach((doc) => {
           const data = doc.data() as UserProject;
-          assignments.add(data.userId);
+          if (!assignmentMap.has(data.projectId)) {
+            assignmentMap.set(data.projectId, new Set());
+          }
+          assignmentMap.get(data.projectId)!.add(data.userId);
         });
 
-        setExistingAssignments(assignments);
-        setSelectedUsers(assignments);
+        setExistingAssignments(assignmentMap);
       } catch (err) {
         console.error("Error fetching assignments:", err);
-      } finally {
-        setLoading(false);
       }
     };
 
-    if (currentProjectId) {
-      fetchExistingAssignments();
-    }
-  }, [currentProjectId]);
+    fetchExistingAssignments();
+  }, [selectedProjects]);
 
-  // Filter users based on search query
+  // Filter and sort users based on search query and sort direction
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredUsers(users);
-      return;
+    let filtered = users;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = users.filter(
+        (user) =>
+          user.email.toLowerCase().includes(query) ||
+          user.courses.some((course) =>
+            course.mainTitle.toLowerCase().includes(query)
+          )
+      );
     }
 
-    const query = searchQuery.toLowerCase();
-    const filtered = users.filter((user) =>
-      user.email.toLowerCase().includes(query)
-    );
+    // Apply sorting
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortDirection === "asc") {
+        return a.email.localeCompare(b.email);
+      } else {
+        return b.email.localeCompare(a.email);
+      }
+    });
 
     setFilteredUsers(filtered);
-  }, [searchQuery, users]);
+    setSortedUsers(sorted);
+  }, [searchQuery, users, sortDirection]);
 
-  // Handle project selection change
-  const handleProjectChange = (projectId: string) => {
-    setCurrentProjectId(projectId);
+  // Handle project selection toggle
+  const handleProjectToggle = (projectId: string) => {
+    const newSelectedProjects = new Set(selectedProjects);
+
+    if (newSelectedProjects.has(projectId)) {
+      newSelectedProjects.delete(projectId);
+    } else {
+      newSelectedProjects.add(projectId);
+    }
+
+    setSelectedProjects(newSelectedProjects);
   };
 
   // Handle user selection toggle
@@ -189,185 +288,345 @@ export default function ProjectAssignment({
     setSelectedUsers(newSelectedUsers);
   };
 
-  // Handle select all users
-  const handleSelectAll = () => {
-    if (selectedUsers.size === filteredUsers.length) {
-      // If all are selected, deselect all
-      setSelectedUsers(new Set());
+  // Handle select all projects
+  const handleSelectAllProjects = () => {
+    if (selectedProjects.size === projects.length) {
+      setSelectedProjects(new Set());
     } else {
-      // Otherwise, select all filtered users
-      const newSelectedUsers = new Set<string>();
-      filteredUsers.forEach((user) => {
-        newSelectedUsers.add(user.id);
-      });
-      setSelectedUsers(newSelectedUsers);
+      setSelectedProjects(new Set(projects.map((p) => p.id)));
     }
   };
 
-  // Save assignments
-  const handleSaveAssignments = async () => {
-    if (!currentProjectId) {
-      alert("Please select a project");
+  // Handle sort direction toggle
+  const handleSortToggle = () => {
+    setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+  };
+
+  // Handle select all users (use sortedUsers for consistency)
+  const handleSelectAllUsers = () => {
+    if (selectedUsers.size === sortedUsers.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(sortedUsers.map((u) => u.id)));
+    }
+  };
+
+  // Get detailed assignment status for user
+  const getUserAssignmentDetails = (userId: string) => {
+    const isSelected = selectedUsers.has(userId);
+    const assignedProjects = Array.from(selectedProjects).filter((projectId) =>
+      existingAssignments.get(projectId)?.has(userId)
+    );
+    const isAssignedToAny = assignedProjects.length > 0;
+    const isAssignedToAll = assignedProjects.length === selectedProjects.size;
+
+    return {
+      isSelected,
+      isAssignedToAny,
+      isAssignedToAll,
+      assignedProjects,
+      totalSelectedProjects: selectedProjects.size,
+    };
+  };
+
+  // Get assignment status for user
+  const getUserAssignmentStatus = (userId: string) => {
+    const details = getUserAssignmentDetails(userId);
+    const { isSelected, isAssignedToAny, isAssignedToAll } = details;
+
+    if (isAssignedToAll && isSelected) return "assigned-all";
+    if (isAssignedToAny && isSelected && !isAssignedToAll)
+      return "assigned-partial";
+    if (isAssignedToAny && !isSelected) return "will-remove";
+    if (!isAssignedToAny && isSelected) return "will-assign";
+    return "unassigned";
+  };
+
+  // Check if there are any changes to be made
+  const hasChangesToApply = () => {
+    if (selectedProjects.size === 0) return false;
+
+    for (const projectId of selectedProjects) {
+      const currentAssignments =
+        existingAssignments.get(projectId) || new Set();
+
+      // Check if there are users to add (selected but not currently assigned)
+      const usersToAdd = Array.from(selectedUsers).filter(
+        (userId) => !currentAssignments.has(userId)
+      );
+
+      // Check if there are users to remove (currently assigned but not selected)
+      const usersToRemove = Array.from(currentAssignments).filter(
+        (userId) => !selectedUsers.has(userId)
+      );
+
+      // If there are any additions or removals, we have changes
+      if (usersToAdd.length > 0 || usersToRemove.length > 0) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const handleSaveBulkAssignments = async () => {
+    if (selectedProjects.size === 0) {
+      alert("Please select at least one project");
       return;
     }
 
     try {
       setSaving(true);
+      const batch = writeBatch(db);
+      let addCount = 0;
+      let removeCount = 0;
 
-      // Determine users to add and remove
-      const usersToAdd = Array.from(selectedUsers).filter(
-        (userId) => !existingAssignments.has(userId)
-      );
-      const usersToRemove = Array.from(existingAssignments).filter(
-        (userId) => !selectedUsers.has(userId)
-      );
+      // Process each project-user combination
+      for (const projectId of selectedProjects) {
+        const currentAssignments =
+          existingAssignments.get(projectId) || new Set();
 
-      // Add new assignments
-      for (const userId of usersToAdd) {
-        await addDoc(collection(db, "userProjects"), {
-          userId,
-          projectId: currentProjectId,
-          assignedAt: new Date().toISOString(),
-        });
-      }
-
-      // Remove existing assignments
-      const userProjectsRef = collection(db, "userProjects");
-      for (const userId of usersToRemove) {
-        const assignmentQuery = query(
-          userProjectsRef,
-          where("projectId", "==", currentProjectId),
-          where("userId", "==", userId)
+        // Users to add for this project (selected users who aren't currently assigned)
+        const usersToAdd = Array.from(selectedUsers).filter(
+          (userId) => !currentAssignments.has(userId)
         );
-        const snapshot = await getDocs(assignmentQuery);
 
-        snapshot.forEach(async (doc) => {
-          await deleteDoc(doc.ref);
-        });
+        // Users to remove for this project (currently assigned users who aren't selected)
+        const usersToRemove = Array.from(currentAssignments).filter(
+          (userId) => !selectedUsers.has(userId)
+        );
+
+        // Add new assignments
+        for (const userId of usersToAdd) {
+          const docRef = firebaseDoc(collection(db, "userProjects"));
+          batch.set(docRef, {
+            userId,
+            projectId,
+            assignedAt: new Date().toISOString(),
+          });
+          addCount++;
+        }
+
+        // Remove existing assignments that are no longer selected
+        if (usersToRemove.length > 0) {
+          const removeQuery = query(
+            collection(db, "userProjects"),
+            where("projectId", "==", projectId),
+            where("userId", "in", usersToRemove)
+          );
+          const removeSnapshot = await getDocs(removeQuery);
+
+          removeSnapshot.forEach((doc) => {
+            batch.delete(doc.ref);
+            removeCount++;
+          });
+        }
       }
 
-      // Update existing assignments set
-      setExistingAssignments(new Set(selectedUsers));
+      await batch.commit();
 
-      alert("Project assignments updated successfully!");
+      // Update existing assignments state
+      const newAssignments = new Map(existingAssignments);
+      for (const projectId of selectedProjects) {
+        newAssignments.set(projectId, new Set(selectedUsers));
+      }
+      setExistingAssignments(newAssignments);
+
+      // Show detailed success message
+      let message = "Successfully updated project assignments!";
+      if (addCount > 0 && removeCount > 0) {
+        message = `Successfully added ${addCount} and removed ${removeCount} assignments!`;
+      } else if (addCount > 0) {
+        message = `Successfully added ${addCount} new assignments!`;
+      } else if (removeCount > 0) {
+        message = `Successfully removed ${removeCount} assignments!`;
+      }
+
+      alert(message);
     } catch (err) {
-      console.error("Error saving assignments:", err);
+      console.error("Error saving bulk assignments:", err);
       alert("Failed to update project assignments. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
-  // Find project name
-  const getProjectName = () => {
-    const project = projects.find((p) => p.id === currentProjectId);
-    return project ? project.title : "Select a project";
-  };
-
-  // Calculate metrics
-  const assignedUsersCount = selectedUsers.size;
-  const totalUsersCount = users.length;
-
   return (
     <div className="space-y-6">
-      {/* Project selection */}
-      <div className="grid gap-2">
-        <Label htmlFor="project">Select Project to Assign</Label>
-        <Select value={currentProjectId} onValueChange={handleProjectChange}>
-          <SelectTrigger id="project">
-            <SelectValue placeholder="Select a project" />
-          </SelectTrigger>
-          <SelectContent>
+      {/* Project Selection */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-blue-500" />
+              Select Projects
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSelectAllProjects}
+              className="flex items-center gap-1"
+            >
+              <Checkbox
+                checked={
+                  selectedProjects.size > 0 &&
+                  selectedProjects.size === projects.length
+                }
+                className="mr-1"
+              />
+              {selectedProjects.size === projects.length
+                ? "Deselect All"
+                : "Select All"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {projects.map((project) => (
-              <SelectItem key={project.id} value={project.id}>
-                {project.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {currentProjectId && (
-        <>
-          {/* Assignment info */}
-          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-            <h3 className="font-medium text-lg mb-2">{getProjectName()}</h3>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <Users size={16} />
-                <span>
-                  {assignedUsersCount} of {totalUsersCount} users assigned
-                </span>
-              </div>
-              <Button
-                size="sm"
-                onClick={handleSaveAssignments}
-                style={{ backgroundColor: "#004aad" }}
-                disabled={saving}
+              <div
+                key={project.id}
+                className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                  selectedProjects.has(project.id)
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+                onClick={() => handleProjectToggle(project.id)}
               >
-                {saving ? "Saving..." : "Save Assignments"}
-              </Button>
-            </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedProjects.has(project.id)}
+                    onChange={() => handleProjectToggle(project.id)}
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-medium text-sm">{project.title}</h4>
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-slate-100 text-slate-600 border-slate-300"
+                      >
+                        {project.categoryTitle}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-500 line-clamp-2">
+                      {project.description}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* User search and list */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="relative w-full max-w-sm">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
-                <Input
-                  placeholder="Search users by email..."
-                  className="pl-8"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
+          {selectedProjects.size > 0 && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>{selectedProjects.size}</strong> projects selected
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSelectAll}
-                className="hidden sm:flex items-center gap-1"
-              >
-                <Checkbox
-                  checked={
-                    selectedUsers.size > 0 &&
-                    selectedUsers.size === filteredUsers.length
-                  }
-                  className="mr-1"
-                />
-                {selectedUsers.size === filteredUsers.length
-                  ? "Deselect All"
-                  : "Select All"}
-              </Button>
+      {/* Assignment Summary */}
+      {selectedProjects.size > 0 && (
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+          <h3 className="font-medium text-lg mb-2">Assignment Summary</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <Users size={16} />
+              <span>
+                {selectedUsers.size} users selected for {selectedProjects.size}{" "}
+                projects
+              </span>
+            </div>
+            <Button
+              size="sm"
+              onClick={handleSaveBulkAssignments}
+              style={{ backgroundColor: "#004aad" }}
+              disabled={
+                saving || selectedProjects.size === 0 || !hasChangesToApply()
+              }
+            >
+              {saving ? "Saving..." : "Apply Changes"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* User Selection */}
+      {selectedProjects.size > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+              <Input
+                placeholder="Search users by email or course..."
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
 
-            {loading ? (
-              <div className="text-center py-8">Loading users...</div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-8 bg-slate-50 rounded-md">
-                <p className="text-slate-500">No users found</p>
-              </div>
-            ) : (
-              <div className="border rounded-md overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[50px]">
-                        <Checkbox
-                          checked={
-                            selectedUsers.size > 0 &&
-                            selectedUsers.size === filteredUsers.length
-                          }
-                          onCheckedChange={handleSelectAll}
-                        />
-                      </TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead className="w-[100px]">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user) => (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSelectAllUsers}
+              className="hidden sm:flex items-center gap-1"
+            >
+              <Checkbox
+                checked={
+                  selectedUsers.size > 0 &&
+                  selectedUsers.size === sortedUsers.length
+                }
+                className="mr-1"
+              />
+              {selectedUsers.size === sortedUsers.length
+                ? "Deselect All"
+                : "Select All"}
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-8">Loading users...</div>
+          ) : sortedUsers.length === 0 ? (
+            <div className="text-center py-8 bg-slate-50 rounded-md">
+              <p className="text-slate-500">No users found</p>
+            </div>
+          ) : (
+            <div className="border rounded-md overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Checkbox
+                        checked={
+                          selectedUsers.size > 0 &&
+                          selectedUsers.size === sortedUsers.length
+                        }
+                        onCheckedChange={handleSelectAllUsers}
+                      />
+                    </TableHead>
+                    <TableHead>
+                      <button
+                        onClick={handleSortToggle}
+                        className="flex items-center gap-2 hover:text-blue-600 transition-colors font-medium"
+                      >
+                        Email
+                        {sortDirection === "asc" ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </button>
+                    </TableHead>
+                    <TableHead>Enrolled Courses</TableHead>
+                    <TableHead className="w-[150px]">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedUsers.map((user) => {
+                    const status = getUserAssignmentStatus(user.id);
+
+                    return (
                       <TableRow key={user.id}>
                         <TableCell>
                           <Checkbox
@@ -379,44 +638,81 @@ export default function ProjectAssignment({
                           {user.email}
                         </TableCell>
                         <TableCell>
-                          {existingAssignments.has(user.id) ? (
+                          <div className="flex flex-wrap gap-1">
+                            {user.courses.length > 0 ? (
+                              user.courses.map((course) => (
+                                <Badge
+                                  key={course.id}
+                                  variant="outline"
+                                  className="text-xs bg-green-50 text-green-700 border-green-200 flex items-center gap-1"
+                                >
+                                  <BookOpen size={10} />
+                                  {course.mainTitle}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">
+                                No courses assigned
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {status === "assigned-all" && (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               <Check size={12} className="mr-1" />
-                              Assigned
+                              Assigned to All
                             </span>
-                          ) : selectedUsers.has(user.id) ? (
+                          )}
+                          {status === "assigned-partial" && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                              <Check size={12} className="mr-1" />
+                              Partially Assigned
+                            </span>
+                          )}
+                          {status === "will-assign" && (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              Pending
+                              <Plus size={12} className="mr-1" />
+                              Will Assign
                             </span>
-                          ) : (
+                          )}
+                          {status === "will-remove" && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              <X size={12} className="mr-1" />
+                              Will Remove
+                            </span>
+                          )}
+                          {status === "unassigned" && (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
                               Unassigned
                             </span>
                           )}
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={onComplete} disabled={saving}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveAssignments}
-              style={{ backgroundColor: "#004aad" }}
-              disabled={saving}
-            >
-              {saving ? "Saving..." : "Save Assignments"}
-            </Button>
-          </div>
-        </>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
       )}
+
+      {/* Action buttons */}
+      <div className="flex justify-end gap-2 pt-4">
+        <Button variant="outline" onClick={onComplete} disabled={saving}>
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSaveBulkAssignments}
+          style={{ backgroundColor: "#004aad" }}
+          disabled={
+            saving || selectedProjects.size === 0 || !hasChangesToApply()
+          }
+        >
+          {saving ? "Saving..." : "Apply Changes"}
+        </Button>
+      </div>
     </div>
   );
 }

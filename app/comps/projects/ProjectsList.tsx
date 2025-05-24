@@ -35,7 +35,7 @@ interface ProjectsListProps {
   onViewSubmissions: (projectId: string) => void;
 }
 
-interface ProjectWithCategory extends Project {
+export interface ProjectWithCategory extends Project {
   categoryTitle: string;
 }
 
