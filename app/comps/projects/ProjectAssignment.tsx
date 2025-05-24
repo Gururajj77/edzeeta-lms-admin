@@ -38,8 +38,9 @@ import {
   UserProject,
 } from "@/app/types/projects/types";
 
-interface BulkProjectAssignmentProps {
+interface ProjectAssignmentProps {
   onComplete: () => void;
+  selectedProjectId: string | null;
 }
 
 interface User {
@@ -63,7 +64,7 @@ interface UserWithCourses extends User {
 
 export default function BulkProjectAssignment({
   onComplete,
-}: BulkProjectAssignmentProps) {
+}: ProjectAssignmentProps) {
   const [projects, setProjects] = useState<ProjectWithCategory[]>([]);
   const [categories, setCategories] = useState<ProjectCategory[]>([]);
   const [users, setUsers] = useState<UserWithCourses[]>([]);
